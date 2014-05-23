@@ -351,7 +351,6 @@ struct device_drv {
 
 	/* Highest target diff the device supports */
 	double max_diff;
-	double working_diff;
 };
 
 extern struct device_drv *copy_drv(struct device_drv*);
@@ -486,7 +485,7 @@ struct cgpu_info {
 	double temp;
 	int cutofftemp;
 
-	int diff1;
+	int64_t diff1;
 	double diff_accepted;
 	double diff_rejected;
 	int last_share_pool;
@@ -518,6 +517,11 @@ struct cgpu_info {
 	bool shutdown;
 
 	struct timeval dev_start_tv;
+
+	/* For benchmarking only */
+	int hidiff;
+	int lodiff;
+	int direction;
 };
 
 extern bool add_cgpu(struct cgpu_info*);
@@ -1009,6 +1013,9 @@ extern char *opt_bitmine_a1_options;
 extern char *opt_bitmain_options;
 extern bool opt_bitmain_hwerror;
 #endif
+#ifdef USE_MINION
+extern char *opt_minion_freq;
+#endif
 #ifdef USE_USBUTILS
 extern char *opt_usb_select;
 extern int opt_usbdump;
@@ -1110,8 +1117,8 @@ extern double total_rolling;
 extern double total_mhashes_done;
 extern unsigned int new_blocks;
 extern unsigned int found_blocks;
-extern int total_accepted, total_rejected, total_diff1;;
-extern int total_getworks, total_stale, total_discarded;
+extern int64_t total_accepted, total_rejected, total_diff1;
+extern int64_t total_getworks, total_stale, total_discarded;
 extern double total_diff_accepted, total_diff_rejected, total_diff_stale;
 extern unsigned int local_work;
 extern unsigned int total_go, total_ro;
@@ -1152,11 +1159,11 @@ struct stratum_work {
 struct pool {
 	int pool_no;
 	int prio;
-	int accepted, rejected;
+	int64_t accepted, rejected;
 	int seq_rejects;
 	int seq_getfails;
 	int solved;
-	int diff1;
+	int64_t diff1;
 	char diff[8];
 	int quota;
 	int quota_gcd;
@@ -1303,7 +1310,8 @@ struct work {
 	unsigned char	target[32];
 	unsigned char	hash[32];
 
-	unsigned char	device_target[32];
+	/* This is the diff the device is currently aiming for and must be
+	 * the minimum of work_difficulty & drv->max_diff */
 	double		device_diff;
 	uint64_t	share_diff;
 
@@ -1341,6 +1349,8 @@ struct work {
 	uint32_t	id;
 	UT_hash_handle	hh;
 
+	/* This is the diff work we're aiming to submit and should match the
+	 * work->target binary */
 	double		work_difficulty;
 
 	// Allow devices to identify work if multiple sub-devices
@@ -1430,7 +1440,11 @@ extern int curses_int(const char *query);
 extern char *curses_input(const char *query);
 extern void kill_work(void);
 extern void switch_pools(struct pool *selected);
-extern void discard_work(struct work *work);
+extern void _discard_work(struct work *work);
+#define discard_work(WORK) do { \
+	_discard_work(WORK); \
+	WORK = NULL; \
+} while (0)
 extern void remove_pool(struct pool *pool);
 extern void write_config(FILE *fcfg);
 extern void zero_bestshare(void);
@@ -1440,6 +1454,7 @@ extern bool log_curses_only(int prio, const char *datetime, const char *str);
 extern void clear_logwin(void);
 extern void logwin_update(void);
 extern bool pool_tclear(struct pool *pool, bool *var);
+extern void pool_failed(struct pool *pool);
 extern struct thread_q *tq_new(void);
 extern void tq_free(struct thread_q *tq);
 extern bool tq_push(struct thread_q *tq, void *data);
@@ -1452,7 +1467,11 @@ extern void app_restart(void);
 extern void roll_work(struct work *work);
 extern struct work *make_clone(struct work *work);
 extern void clean_work(struct work *work);
-extern void free_work(struct work *work);
+extern void _free_work(struct work *work);
+#define free_work(WORK) do { \
+	_free_work(WORK); \
+	WORK = NULL; \
+} while (0)
 extern void set_work_ntime(struct work *work, int ntime);
 extern struct work *copy_work_noffset(struct work *base_work, int noffset);
 #define copy_work(work_in) copy_work_noffset(work_in, 0)
@@ -1472,6 +1491,7 @@ enum api_data_type {
 	API_UINT32,
 	API_HEX32,
 	API_UINT64,
+	API_INT64,
 	API_DOUBLE,
 	API_ELAPSED,
 	API_BOOL,

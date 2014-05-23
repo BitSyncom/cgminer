@@ -21,8 +21,6 @@
 #define AVA2_RESET_FAULT_DECISECONDS	10
 #define AVA2_IO_SPEED		115200
 
-#define AVA2_DEFAULT_MINERS	10
-#define AVA2_AVA3_MINERS	5
 #define AVA2_DEFAULT_MODULARS	4
 
 #define AVA2_PWM_MAX	0x3FF
@@ -30,15 +28,23 @@
 #define AVA2_DEFAULT_FAN_MIN	0
 #define AVA2_DEFAULT_FAN_MAX	100
 
-#define AVA2_DEFAULT_VOLTAGE	10000 /* V * 10000 */
+#define AVALON2_TEMP_OVERHEAT	88
+
 #define AVA2_DEFAULT_VOLTAGE_MIN	6000
 #define AVA2_DEFAULT_VOLTAGE_MAX	11000
 
-#define AVA2_DEFAULT_FREQUENCY	1500 /* In MH/s */
 #define AVA2_DEFAULT_FREQUENCY_MIN	300
 #define AVA2_DEFAULT_FREQUENCY_MAX	2000
 
-#define AVALON2_TEMP_OVERHEAT	88
+/* Avalon2 default values */
+#define AVA2_DEFAULT_MINERS	10
+#define AVA2_DEFAULT_VOLTAGE	10000 /* v * 10000 */
+#define AVA2_DEFAULT_FREQUENCY	1500 /* In MHs */
+
+/* Avalon3 default values */
+#define AVA2_AVA3_MINERS	5
+#define AVA2_AVA3_VOLTAGE	6625 /* 0.6625v */
+#define AVA2_AVA3_FREQUENCY	400  /* MHz * 11.8 = MHs: 400MHz means ~4.7GHs */
 
 /* Avalon2 protocol package type */
 #define AVA2_H1	'A'
@@ -70,15 +76,15 @@
 #define AVA2_P_TEST_RET		26
 /* Avalon2 protocol package type */
 
-/* Avalon2/3 prefix */
+/* Avalon2/3 firmware prefix */
 #define AVA2_FW2_PREFIXSTR	"20"
 #define AVA2_FW3_PREFIXSTR	"33"
 
 #define AVA2_MM_VERNULL		"NONE"
 
-#define AVA2_ID_AVA2		(0x3255)
-#define AVA2_ID_AVA3		(0x3233)
-#define AVA2_ID_AVAX		(0x3200)
+#define AVA2_ID_AVA2		3255
+#define AVA2_ID_AVA3		3233
+#define AVA2_ID_AVAX		3200
 
 struct avalon2_pkg {
 	uint8_t head[2];
@@ -91,6 +97,7 @@ struct avalon2_pkg {
 #define avalon2_ret avalon2_pkg
 
 struct avalon2_info {
+	bool first;
 	int fd;
 	int baud;
 
@@ -105,15 +112,7 @@ struct avalon2_info {
 
 	int fan[2 * AVA2_DEFAULT_MODULARS];
 	int temp[2 * AVA2_DEFAULT_MODULARS];
-
 	int temp_max;
-	int temp_history_count;
-	int temp_history_index;
-	int temp_sum;
-	int temp_old;
-
-	bool first;
-	bool new_stratum;
 
 	int pool_no;
 	int diff;
@@ -126,6 +125,7 @@ struct avalon2_info {
 
 	int modulars[AVA2_DEFAULT_MODULARS];
 	char mm_version[AVA2_DEFAULT_MODULARS][16];
+	int dev_type[AVA2_DEFAULT_MODULARS];
 };
 
 #define AVA2_WRITE_SIZE (sizeof(struct avalon2_pkg))
