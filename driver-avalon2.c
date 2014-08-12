@@ -38,6 +38,7 @@
 #include "driver-avalon2.h"
 #include "crc.h"
 #include "hexdump.c"
+#include "sha2.h"
 
 #define ASSERT1(condition) __maybe_unused static char sizeof_uint32_t_must_be_4[(condition)?1:-1]
 ASSERT1(sizeof(uint32_t) == 4);
@@ -59,6 +60,27 @@ int opt_avalon2_polling_delay = AVALON2_DEFAULT_POLLING_DELAY;
 enum avalon2_fan_fixed opt_avalon2_fan_fixed = FAN_AUTO;
 
 static struct pool pool_stratum;
+
+#define UNPACK32(x, str)                      \
+{                                             \
+    *((str) + 3) = (uint8_t) ((x)      );       \
+    *((str) + 2) = (uint8_t) ((x) >>  8);       \
+    *((str) + 1) = (uint8_t) ((x) >> 16);       \
+    *((str) + 0) = (uint8_t) ((x) >> 24);       \
+}
+
+static void sha256_prehash(const unsigned char *message, unsigned int len, unsigned char *digest)
+{
+    sha256_ctx ctx;
+    int i;
+    sha256_init(&ctx);
+    sha256_update(&ctx, message, len);
+
+    for (i = 0; i < 8; i++) {
+        UNPACK32(ctx.h[i], &digest[i << 2]);
+    }
+}
+
 
 static inline uint8_t rev8(uint8_t d)
 {
@@ -519,7 +541,6 @@ static int avalon2_stratum_pkgs(int fd, struct pool *pool, struct thr_info *thr)
 	while (avalon2_send_pkg(fd, &pkg, thr) != AVA2_SEND_OK)
 		;
 
-
 	applog(LOG_DEBUG, "Avalon2: Pool stratum message JOBS_ID: %s",
 	       pool->swork.job_id);
 	memset(pkg.data, 0, AVA2_P_DATA_LEN);
@@ -532,21 +553,50 @@ static int avalon2_stratum_pkgs(int fd, struct pool *pool, struct thr_info *thr)
 	while (avalon2_send_pkg(fd, &pkg, thr) != AVA2_SEND_OK)
 		;
 
-	a = pool->coinbase_len / AVA2_P_DATA_LEN;
-	b = pool->coinbase_len % AVA2_P_DATA_LEN;
-	applog(LOG_DEBUG, "Avalon2: Pool stratum message COINBASE: %d %d", a, b);
-	for (i = 0; i < a; i++) {
-		memcpy(pkg.data, pool->coinbase + i * 32, 32);
-		avalon2_init_pkg(&pkg, AVA2_P_COINBASE, i + 1, a + (b ? 1 : 0));
-		while (avalon2_send_pkg(fd, &pkg, thr) != AVA2_SEND_OK)
+	if (pool->coinbase_len > AVA2_P_COINBASE_SIZE) {
+		int coinbase_len_posthash, coinbase_len_prehash;
+		uint8_t coinbase_prehash[32];
+		coinbase_len_prehash = pool->nonce2_offset - (pool->nonce2_offset % SHA256_BLOCK_SIZE);
+		coinbase_len_posthash = pool->coinbase_len - coinbase_len_prehash;
+		sha256_prehash(pool->coinbase, coinbase_len_prehash, coinbase_prehash);
+
+		a = (coinbase_len_posthash / AVA2_P_DATA_LEN) + 1;
+		b = coinbase_len_posthash % AVA2_P_DATA_LEN;
+	        memcpy(pkg.data, coinbase_prehash, 32);
+	        avalon2_init_pkg(&pkg, AVA2_P_COINBASE, 1, a + (b ? 1 : 0));
+	        while (avalon2_send_pkg(fd, &pkg, thr) != AVA2_SEND_OK)
 			;
-	}
-	if (b) {
-		memset(pkg.data, 0, AVA2_P_DATA_LEN);
-		memcpy(pkg.data, pool->coinbase + i * 32, b);
-		avalon2_init_pkg(&pkg, AVA2_P_COINBASE, i + 1, i + 1);
-		while (avalon2_send_pkg(fd, &pkg, thr) != AVA2_SEND_OK)
-			;
+	        applog(LOG_DEBUG, "Avalon2: Pool stratum message modified COINBASE: %d %d", a, b);
+	        for (i = 1; i < a; i++) {
+	                memcpy(pkg.data, pool->coinbase + coinbase_len_prehash + i * 32 - 32, 32);
+	                avalon2_init_pkg(&pkg, AVA2_P_COINBASE, i + 1, a + (b ? 1 : 0));
+			while (avalon2_send_pkg(fd, &pkg, thr) != AVA2_SEND_OK)
+	                        ;
+	        }
+	        if (b) {
+	                memset(pkg.data, 0, AVA2_P_DATA_LEN);
+			memcpy(pkg.data, pool->coinbase + coinbase_len_prehash + i * 32 - 32, b);
+	                avalon2_init_pkg(&pkg, AVA2_P_COINBASE, i + 1, i + 1);
+	                while (avalon2_send_pkg(fd, &pkg, thr) != AVA2_SEND_OK)
+	                        ;
+	        }
+	} else {
+		a = pool->coinbase_len / AVA2_P_DATA_LEN;
+		b = pool->coinbase_len % AVA2_P_DATA_LEN;
+		applog(LOG_DEBUG, "Avalon2: Pool stratum message COINBASE: %d %d", a, b);
+		for (i = 0; i < a; i++) {
+			memcpy(pkg.data, pool->coinbase + i * 32, 32);
+			avalon2_init_pkg(&pkg, AVA2_P_COINBASE, i + 1, a + (b ? 1 : 0));
+			while (avalon2_send_pkg(fd, &pkg, thr) != AVA2_SEND_OK)
+				;
+		}
+		if (b) {
+			memset(pkg.data, 0, AVA2_P_DATA_LEN);
+			memcpy(pkg.data, pool->coinbase + i * 32, b);
+			avalon2_init_pkg(&pkg, AVA2_P_COINBASE, i + 1, i + 1);
+			while (avalon2_send_pkg(fd, &pkg, thr) != AVA2_SEND_OK)
+				;
+		}
 	}
 
 	b = pool->merkles;
@@ -838,11 +888,17 @@ static int64_t avalon2_scanhash(struct thr_info *thr)
 		pool = current_pool();
 		if (!pool->has_stratum)
 			quit(1, "Avalon2: Miner Manager have to use stratum pool");
+
 		if (pool->coinbase_len > AVA2_P_COINBASE_SIZE) {
-			applog(LOG_ERR, "Avalon2: Miner Manager pool coinbase length(%d) have to less then %d",
-			       pool->coinbase_len, AVA2_P_COINBASE_SIZE);
-			return 0;
+			applog(LOG_INFO, "Avalon2: Miner Manager pool coinbase length(%d) is more than %d",
+				pool->coinbase_len, AVA2_P_COINBASE_SIZE);
+			if ((pool->coinbase_len - pool->nonce2_offset + 64) > AVA2_P_COINBASE_SIZE) {
+				applog(LOG_ERR, "Avalon2: Miner Manager pool modified coinbase length(%d) is more than %d",
+					pool->coinbase_len - pool->nonce2_offset + 64, AVA2_P_COINBASE_SIZE);
+				return 0;
+			}
 		}
+
 		if (pool->merkles > AVA2_P_MERKLES_COUNT) {
 			applog(LOG_ERR, "Avalon2: Miner Manager merkles have to less then %d", AVA2_P_MERKLES_COUNT);
 			return 0;
