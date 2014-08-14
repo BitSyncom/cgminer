@@ -262,8 +262,24 @@ static void adjust_fan(struct avalon2_info *info)
 
 static inline int mm_cmp_1404(struct avalon2_info *info, int modular)
 {
+	/* <= 1404 return 1 */
+
 	char *mm_1404 = "1404";
 	return strncmp(info->mm_version[modular] + 2, mm_1404, 4) > 0 ? 0 : 1;
+}
+
+static inline int mm_cmp_1406(struct avalon2_info *info)
+{
+	/* <= 1406 return 1 */
+	char *mm_1406 = "1406";
+	int i;
+	for (i = 0; i < AVA2_DEFAULT_MODULARS; i++) {
+		if (info->enable[i] &&
+		    strncmp(info->mm_version[i] + 2, mm_1406, 4) <= 0)
+			return 1;
+	}
+
+	return 0;
 }
 
 extern void submit_nonce2_nonce(struct thr_info *thr, struct pool *pool, struct pool *real_pool, uint32_t nonce2, uint32_t nonce);
@@ -892,6 +908,10 @@ static int64_t avalon2_scanhash(struct thr_info *thr)
 		if (pool->coinbase_len > AVA2_P_COINBASE_SIZE) {
 			applog(LOG_INFO, "Avalon2: Miner Manager pool coinbase length(%d) is more than %d",
 				pool->coinbase_len, AVA2_P_COINBASE_SIZE);
+			if (mm_cmp_1406(info)) {
+				applog(LOG_ERR, "Avalon2: MM version less then 1406");
+				return 0;
+			}
 			if ((pool->coinbase_len - pool->nonce2_offset + 64) > AVA2_P_COINBASE_SIZE) {
 				applog(LOG_ERR, "Avalon2: Miner Manager pool modified coinbase length(%d) is more than %d",
 					pool->coinbase_len - pool->nonce2_offset + 64, AVA2_P_COINBASE_SIZE);
