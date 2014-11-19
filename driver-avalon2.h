@@ -179,9 +179,8 @@ struct avalon2_iic_info {
 	} iic_param;
 };
 
-struct avalon2_discover_info {
+struct avalon2_dev_info {
 	char mm_dna[AVA2_DNA_LEN];
-	int modular_id;
 	char mm_version[16];
 };
 
