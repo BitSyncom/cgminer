@@ -28,6 +28,7 @@ int opt_avalon4_fan_min = AVA4_DEFAULT_FAN_MIN;
 int opt_avalon4_fan_max = AVA4_DEFAULT_FAN_MAX;
 
 bool opt_avalon4_autov;
+bool opt_avalon4_freezesafe;
 int opt_avalon4_voltage_min = AVA4_DEFAULT_VOLTAGE;
 int opt_avalon4_voltage_max = AVA4_DEFAULT_VOLTAGE;
 int opt_avalon4_freq[3] = {AVA4_DEFAULT_FREQUENCY,
@@ -1493,7 +1494,8 @@ static int64_t avalon4_scanhash(struct thr_info *thr)
 	/* Stop polling the device if there is no stratum in 3 minutes, network is down */
 	cgtime(&current);
 	if (tdiff(&current, &(info->last_stratum)) > 180.0)
-		return 0;
+		if(!opt_avalon4_freezesafe)
+			return 0;
 
 	cg_rlock(&info->update_lock);
 	polling(thr, avalon4, info);
@@ -1870,8 +1872,25 @@ static char *avalon4_set_device(struct cgpu_info *avalon4, char *option, char *s
 	struct avalon4_info *info = avalon4->device_data;
 
 	if (strcasecmp(option, "help") == 0) {
-		sprintf(replybuf, "led|fan|voltage|frequency|pdelay");
+		sprintf(replybuf, "led|fan|voltage|frequency|pdelay|freezesafe");
 		return replybuf;
+	}
+
+	if (strcasecmp(option, "freezesafe") == 0) {
+		applog(LOG_NOTICE, "fuye!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+		if (!setting || !*setting) {
+			sprintf(replybuf, "missing freezesafe mode setting");
+			return replybuf;
+		}
+
+		val = atoi(setting);
+
+		opt_avalon4_freezesafe = val ? 1 : 0;
+
+		applog(LOG_NOTICE, "%s-%d: update freezesafe mode: %d",
+			avalon4->drv->name, avalon4->device_id, opt_avalon4_freezesafe);
+
+		return NULL;
 	}
 
 	if (strcasecmp(option, "pdelay") == 0) {
