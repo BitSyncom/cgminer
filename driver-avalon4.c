@@ -2036,12 +2036,17 @@ static char *avalon4_set_device(struct cgpu_info *avalon4, char *option, char *s
 	}
 
 	if (strcasecmp(option, "led") == 0) {
+		int val_led;
+		bool toggle = false;
 		if (!setting || !*setting) {
 			sprintf(replybuf, "missing module_id setting");
 			return replybuf;
 		}
 
-		val = atoi(setting);
+		if (!sscanf(setting, "%d-%d", &val, &val_led)) {
+			toggle = true;
+			val = atoi(setting);
+		}
 		if (val < 1 || val >= AVA4_DEFAULT_MODULARS) {
 			sprintf(replybuf, "invalid module_id: %d, valid range 1-%d", val, AVA4_DEFAULT_MODULARS);
 			return replybuf;
@@ -2052,11 +2057,23 @@ static char *avalon4_set_device(struct cgpu_info *avalon4, char *option, char *s
 			return replybuf;
 		}
 
-		info->led_red[val] = !info->led_red[val];
+		if (toggle)
+			info->led_red[val] = !info->led_red[val];
+		else {
+			if (val_led < 0 || val_led > 1) {
+				sprintf(replybuf, "invalid LED status: %d, valid value 0|1", val_led);
+				return replybuf;
+			}
+			if (val_led != info->led_red[val]) {
+				toggle = true;
+				info->led_red[val] = val_led;
+			}
+		}
 
-		applog(LOG_NOTICE, "%s-%d: Module:%d, LED: %s",
-		       avalon4->drv->name, avalon4->device_id,
-		       val, info->led_red[val] ? "on" : "off");
+		if (toggle)
+			applog(LOG_NOTICE, "%s-%d: Module:%d, LED: %s",
+					avalon4->drv->name, avalon4->device_id,
+					val, info->led_red[val] ? "on" : "off");
 
 		return NULL;
 	}
