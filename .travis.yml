@@ -21,8 +21,10 @@ script:
     - make
 
 notifications:
+    email: false
     irc:
         channels:
-            - "chat.freenode.net#avalon"
-        skip_join: true
+            - "irc.freenode.org#avalon"
+        on_success: always
+        on_failure: always
 
