@@ -13,6 +13,8 @@
 #include "util.h"
 #include "i2c-context.h"
 
+//#define USE_AVALON7
+
 #ifdef USE_AVALON7
 
 #define AVA7_TEMP_FREQADJ		104
@@ -258,6 +260,8 @@ struct avalon7_info {
 	uint8_t power_good[AVA7_DEFAULT_MODULARS];
 	char pmu_version[AVA7_DEFAULT_MODULARS][AVA7_DEFAULT_PMU_CNT][5];
 	uint64_t diff1[AVA7_DEFAULT_MODULARS];
+
+    bool conn_overloaded;
 };
 
 struct avalon7_iic_info {

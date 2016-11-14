@@ -1246,7 +1246,7 @@ static void detect_modules(struct cgpu_info *avalon7)
 	uint8_t rbuf[AVA7_AUC_P_SIZE];
 
 	/* Detect new modules here */
-	for (i = 1; i < AVA7_DEFAULT_MODULARS; i++) {
+	for (i = 1; i < 8; i++) {
 		if (info->enable[i])
 			continue;
 
@@ -1279,6 +1279,12 @@ static void detect_modules(struct cgpu_info *avalon7)
 
 		if (check_module_exist(avalon7, ret_pkg.data))
 			continue;
+
+        if (i == 7) {
+            info->conn_overloaded = 1;
+            break;
+        }
+
 
 		info->enable[i] = 1;
 		cgtime(&info->elapsed[i]);
@@ -2187,6 +2193,10 @@ static struct api_data *avalon7_api_stats(struct cgpu_info *avalon7)
 		auc_temp = decode_auc_temp(info->auc_sensor);
 		root = api_add_temp(root, "AUC Temperature", &auc_temp, true);
 	}
+
+    if (info->conn_overloaded) {
+        root = api_add_bool(root, "Connection Overloaded", &info->conn_overloaded, true);
+    }
 
 	return root;
 }
