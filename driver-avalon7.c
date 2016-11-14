@@ -263,7 +263,7 @@ char *set_avalon7_fan(char *arg)
 
 	ret = sscanf(arg, "%d-%d", &val1, &val2);
 	if (ret < 1)
-		return "No values passed to avalon7-fan";
+		return "No value passed to avalon7-fan";
 	if (ret == 1)
 		val2 = val1;
 
@@ -325,7 +325,7 @@ char *set_avalon7_voltage(char *arg)
 
 	ret = sscanf(arg, "%d", &val);
 	if (ret < 1)
-		return "No values passed to avalon7-voltage";
+		return "No value passed to avalon7-voltage";
 
 	if (val < AVA7_DEFAULT_VOLTAGE_MIN || val > AVA7_DEFAULT_VOLTAGE_MAX)
 		return "Invalid value passed to avalon7-voltage";
@@ -928,7 +928,7 @@ static int avalon7_iic_xfer_pkg(struct cgpu_info *avalon7, uint8_t slave_addr,
 			applog(LOG_DEBUG, "%s-%d-%d: IIC read again!(type:0x%x, err:%d)", avalon7->drv->name, avalon7->device_id, slave_addr, pkg->type, err);
 		}
 		if (err) {
-			/* FIXME: Don't care broadcast message with no reply, or it will block other thread when called by avalon7_send_bc_pkgs */
+			/* FIXME: Don't care broadcast messages with no reply, or it will block other threads when called by avalon7_send_bc_pkgs */
 			if ((pkg->type != AVA7_P_DETECT) && (slave_addr == AVA7_MODULE_BROADCAST))
 				return AVA7_SEND_OK;
 
@@ -1246,7 +1246,7 @@ static void detect_modules(struct cgpu_info *avalon7)
 	uint8_t rbuf[AVA7_AUC_P_SIZE];
 
 	/* Detect new modules here */
-	for (i = 1; i < AVA7_DEFAULT_MODULARS; i++) {
+	for (i = 1; i < AVA7_DEFAULT_MODULARS + 1; i++) {
 		if (info->enable[i])
 			continue;
 
@@ -1279,6 +1279,25 @@ static void detect_modules(struct cgpu_info *avalon7)
 
 		if (check_module_exist(avalon7, ret_pkg.data))
 			continue;
+
+<<<<<<< HEAD
+        if (i == 7) {
+<<<<<<< HEAD
+            applog(LOG_NOTICE, "You have connected more than 6 machines. This is discouraged.");
+=======
+>>>>>>> 2344612... Added connection overload detection and API entry
+            info->conn_overloaded = 1;
+            break;
+        }
+=======
+		if (i == 7) {
+			applog(LOG_NOTICE, "You have connected more than 6 machines. This is discouraged.");
+			info->conn_overloaded = 1;
+			break;
+		}
+>>>>>>> a6db5d3... Fixed indentation again :new_moon_with_face:
+
+
 
 		info->enable[i] = 1;
 		cgtime(&info->elapsed[i]);
@@ -1339,7 +1358,7 @@ static void detect_modules(struct cgpu_info *avalon7)
 		memset(info->pmu_version[i], 0, sizeof(char) * 5 * AVA7_DEFAULT_PMU_CNT);
 		info->diff1[i] = 0;
 
-		applog(LOG_NOTICE, "%s-%d: New module detect! ID[%d-%x]",
+		applog(LOG_NOTICE, "%s-%d: New module detected! ID[%d-%x]",
 		       avalon7->drv->name, avalon7->device_id, i, info->mm_dna[i][AVA7_MM_DNA_LEN - 1]);
 
 		/* Tell MM, it has been detected */
@@ -2180,6 +2199,9 @@ static struct api_data *avalon7_api_stats(struct cgpu_info *avalon7)
 		auc_temp = decode_auc_temp(info->auc_sensor);
 		root = api_add_temp(root, "AUC Temperature", &auc_temp, true);
 	}
+
+	if (info->conn_overloaded)
+		root = api_add_bool(root, "Connection Overloaded", &info->conn_overloaded, true);
 
 	return root;
 }
