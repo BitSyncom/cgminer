@@ -1280,11 +1280,11 @@ static void detect_modules(struct cgpu_info *avalon7)
 		if (check_module_exist(avalon7, ret_pkg.data))
 			continue;
 
-        if (i == 7) {
-            applog(LOG_NOTICE, "You have connected more than 6 machines. This is discouraged.");
-            info->conn_overloaded = 1;
-            break;
-        }
+		if (i == 7) {
+		    applog(LOG_NOTICE, "You have connected more than 6 machines. This is discouraged.");
+		    info->conn_overloaded = 1;
+		    break;
+		}
 
 
 		info->enable[i] = 1;
@@ -2195,9 +2195,9 @@ static struct api_data *avalon7_api_stats(struct cgpu_info *avalon7)
 		root = api_add_temp(root, "AUC Temperature", &auc_temp, true);
 	}
 
-    if (info->conn_overloaded) {
-        root = api_add_bool(root, "Connection Overloaded", &info->conn_overloaded, true);
-    }
+	if (info->conn_overloaded) {
+		root = api_add_bool(root, "Connection Overloaded", &info->conn_overloaded, true);
+	}
 
 	return root;
 }

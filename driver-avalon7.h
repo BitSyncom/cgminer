@@ -261,7 +261,7 @@ struct avalon7_info {
 	char pmu_version[AVA7_DEFAULT_MODULARS][AVA7_DEFAULT_PMU_CNT][5];
 	uint64_t diff1[AVA7_DEFAULT_MODULARS];
 
-    bool conn_overloaded;
+    	bool conn_overloaded;
 };
 
 struct avalon7_iic_info {
