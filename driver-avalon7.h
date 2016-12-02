@@ -143,7 +143,7 @@
 #define AVA7_TYPE_MM711		711
 #define AVA7_TYPE_MM721		721
 #define AVA7_TYPE_MM741		741
-#define AVA7_TYPE_NULL		00
+#define AVA7_TYPE_NULL		0
 
 #define AVA7_IIC_RESET		0xa0
 #define AVA7_IIC_INIT		0xa1
