@@ -31,9 +31,7 @@ int opt_avalon8_voltage_offset = AVA8_DEFAULT_VOLTAGE_OFFSET;
 int opt_avalon8_freq[AVA8_DEFAULT_PLL_CNT] = {AVA8_DEFAULT_FREQUENCY_0,
 					      AVA8_DEFAULT_FREQUENCY_1,
 					      AVA8_DEFAULT_FREQUENCY_2,
-					      AVA8_DEFAULT_FREQUENCY_3,
-					      AVA8_DEFAULT_FREQUENCY_4,
-					      AVA8_DEFAULT_FREQUENCY_5};
+					      AVA8_DEFAULT_FREQUENCY_3};
 
 int opt_avalon8_freq_sel = AVA8_DEFAULT_FREQUENCY_SEL;
 
