@@ -184,7 +184,7 @@ struct avalon8_dev_description avalon8_dev_table[] = {
 		"841",
 		841,
 		4,
-		22,
+		26,
 		AVA8_MM841_VIN_ADC_RATIO,
 		AVA8_MM841_VOUT_ADC_RATIO,
 		4825,
