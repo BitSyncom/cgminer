@@ -714,45 +714,6 @@ static int decode_pkg(struct cgpu_info *avalon8, struct avalon8_ret *ar, int mod
 			info->temp[modular_id][i][4] = (int)decode_pvt_temp((uint16_t)info->temp[modular_id][i][4]);
 		}
 		break;
-	case AVA8_P_STATUS_ASIC:
-		{
-			int x_miner_id;
-			int x_asic_id;
-
-			if (!info->asic_count[modular_id])
-				break;
-			x_miner_id = ar->idx / info->asic_count[modular_id];
-			x_asic_id = ar->idx % info->asic_count[modular_id];
-
-			applog(LOG_DEBUG, "%s-%d-%d: AVA8_P_STATUS_ASIC %d-%d",
-					avalon8->drv->name, avalon8->device_id, modular_id,
-					x_miner_id, x_asic_id);
-			memcpy(&tmp, ar->data + 0, 4);
-			if (tmp) {
-				info->get_asic[modular_id][x_miner_id][x_asic_id][0] = be32toh(tmp);
-				memcpy(&tmp, ar->data + 4, 4);
-				info->get_asic[modular_id][x_miner_id][x_asic_id][1] = be32toh(tmp);
-				memcpy(&tmp, ar->data + 8, 4);
-				info->get_asic[modular_id][x_miner_id][x_asic_id][2] = be32toh(tmp);
-				memcpy(&tmp, ar->data + 12, 4);
-				info->get_asic[modular_id][x_miner_id][x_asic_id][3] = be32toh(tmp);
-				memcpy(&tmp, ar->data + 16, 4);
-				info->get_asic[modular_id][x_miner_id][x_asic_id][4] = be32toh(tmp);
-			}
-			tmp = *(ar->data + 20);
-			info->get_asic[modular_id][x_miner_id][x_asic_id][5] = tmp;
-			tmp = *(ar->data + 21);
-			info->get_asic[modular_id][x_miner_id][x_asic_id][6] = tmp;
-			tmp = *(ar->data + 22);
-			info->get_asic[modular_id][x_miner_id][x_asic_id][7] = tmp;
-			tmp = *(ar->data + 23);
-			info->get_asic[modular_id][x_miner_id][x_asic_id][8] = tmp;
-			tmp = *(ar->data + 24);
-			info->get_asic[modular_id][x_miner_id][x_asic_id][9] = tmp;
-			tmp = *(ar->data + 25);
-			info->get_asic[modular_id][x_miner_id][x_asic_id][10] = tmp;
-		}
-		break;
 	case AVA8_P_STATUS_FAC:
 		applog(LOG_DEBUG, "%s-%d-%d: AVA8_P_STATUS_FAC", avalon8->drv->name, avalon8->device_id, modular_id);
 		info->factory_info[0] = ar->data[0];
@@ -1564,7 +1525,6 @@ static void detect_modules(struct cgpu_info *avalon8)
 		info->freq_mode[i] = AVA8_FREQ_INIT_MODE;
 		memset(info->set_frequency[i], 0, sizeof(unsigned int) * info->miner_count[i] * AVA8_DEFAULT_PLL_CNT);
 		memset(info->get_pll[i], 0, sizeof(uint32_t) * info->miner_count[i] * AVA8_DEFAULT_PLL_CNT);
-		memset(info->get_asic[i], 0, sizeof(uint32_t) * 11 * info->miner_count[i] * AVA8_DEFAULT_PLL_CNT);
 
 		info->led_indicator[i] = 0;
 		info->cutoff[i] = 0;
@@ -2141,7 +2101,6 @@ static struct api_data *avalon8_api_stats(struct cgpu_info *avalon8)
 	struct api_data *root = NULL;
 	struct avalon8_info *info = avalon8->device_data;
 	int i, j, k;
-	double a, b, dh;
 	char buf[256];
 	char *statbuf = NULL;
 	struct timeval current;
@@ -2196,18 +2155,6 @@ static struct api_data *avalon8_api_stats(struct cgpu_info *avalon8)
 		statbuf[strlen(statbuf) - 1] = ']';
 
 		sprintf(buf, " HW[%"PRIu64"]", info->hw_works[i]);
-		strcat(statbuf, buf);
-
-		a = 0;
-		b = 0;
-		for (j = 0; j < info->miner_count[i]; j++) {
-			for (k = 0; k < info->asic_count[i]; k++) {
-				a += info->get_asic[i][j][k][0];
-				b += info->get_asic[i][j][k][1];
-			}
-		}
-		dh = b ? (b / (a + b)) * 100: 0;
-		sprintf(buf, " DH[%.3f%%]", dh);
 		strcat(statbuf, buf);
 
 		sprintf(buf, " Temp[%d]", info->temp_mm[i]);
@@ -2307,47 +2254,6 @@ static struct api_data *avalon8_api_stats(struct cgpu_info *avalon8)
 				strcat(statbuf, buf);
 			}
 			statbuf[strlen(statbuf) - 1] = ']';
-
-			for (j = 0; j < info->miner_count[i]; j++) {
-				sprintf(buf, " ERATIO%d[", j);
-				strcat(statbuf, buf);
-				for (k = 0; k < info->asic_count[i]; k++) {
-					if (info->get_asic[i][j][k][0])
-						sprintf(buf, "%.2f%% ", (double)(info->get_asic[i][j][k][1] * 100.0 / (info->get_asic[i][j][k][0] + info->get_asic[i][j][k][1])));
-					else
-						sprintf(buf, "%.2f%% ", 0.0);
-					strcat(statbuf, buf);
-				}
-
-				statbuf[strlen(statbuf) - 1] = ']';
-			}
-			int l;
-			/* i: modular, j: miner, k:asic, l:value */
-			for (l = 0; l < 5; l++) {
-				for (j = 0; j < info->miner_count[i]; j++) {
-					sprintf(buf, " C_%d_%02d[", j, l);
-					strcat(statbuf, buf);
-					for (k = 0; k < info->asic_count[i]; k++) {
-						sprintf(buf, "%5d ", info->get_asic[i][j][k][l]);
-						strcat(statbuf, buf);
-					}
-
-					statbuf[strlen(statbuf) - 1] = ']';
-				}
-			}
-
-			for (j = 0; j < info->miner_count[i]; j++) {
-				sprintf(buf, " GHSmm%02d[", j);
-				strcat(statbuf, buf);
-				for (k = 0; k < info->asic_count[i]; k++) {
-					mhsmm = 0;
-					for (l = 5; l < 11; l++)
-						mhsmm += (info->get_asic[i][j][k][l] * info->set_frequency[i][j][l - 5]);
-					sprintf(buf, "%.2f ", mhsmm / 1000);
-					strcat(statbuf, buf);
-				}
-				statbuf[strlen(statbuf) - 1] = ']';
-			}
 		}
 
 		sprintf(buf, " FM[%d]", info->freq_mode[i]);
@@ -2706,10 +2612,9 @@ static void avalon8_statline_before(char *buf, size_t bufsiz, struct cgpu_info *
 	struct avalon8_info *info = avalon8->device_data;
 	int temp = -273;
 	int fanmin = AVA8_DEFAULT_FAN_MAX;
-	int i, j, k;
+	int i;
 	uint32_t frequency = 0;
 	float ghs_sum = 0, mhsmm = 0;
-	double pass_num = 0.0, fail_num = 0.0;
 
 	for (i = 1; i < AVA8_DEFAULT_MODULARS; i++) {
 		if (!info->enable[i])
@@ -2724,20 +2629,12 @@ static void avalon8_statline_before(char *buf, size_t bufsiz, struct cgpu_info *
 		mhsmm = avalon8_hash_cal(avalon8, i);
 		frequency += (mhsmm / (info->asic_count[i] * info->miner_count[i] * 128));
 		ghs_sum += (mhsmm / 1000);
-
-		for (j = 0; j < info->miner_count[i]; j++) {
-			for (k = 0; k < info->asic_count[i]; k++) {
-				pass_num += info->get_asic[i][j][k][0];
-				fail_num += info->get_asic[i][j][k][1];
-			}
-		}
 	}
 
 	if (info->mm_count)
 		frequency /= info->mm_count;
 
-	tailsprintf(buf, bufsiz, "%4dMhz %.2fGHS %2dC %.2f%% %3d%%", frequency,
-			ghs_sum, temp, (fail_num + pass_num) ? fail_num * 100.0 / (fail_num + pass_num) : 0, fanmin);
+	tailsprintf(buf, bufsiz, "%4dMhz %.2fGHS %2dC %3d%%", frequency, ghs_sum, temp, fanmin);
 }
 
 struct device_drv avalon8_drv = {
