@@ -89,7 +89,6 @@ char *curly = ":D";
 
 #ifdef USE_AVALON8
 #include "driver-avalon8.h"
-#include "libssplus.h"
 #endif
 
 #ifdef USE_AVALON_MINER
@@ -1546,12 +1545,6 @@ static struct opt_table opt_config_table[] = {
 	OPT_WITH_ARG("--avalon8-nonce-mask",
 		     set_int_24_to_32, opt_show_intval, &opt_avalon8_nonce_mask,
 		     "Set A3212 nonce mask, range 24-32."),
-	OPT_WITHOUT_ARG("--no-avalon8-asic-debug",
-		     opt_set_invbool, &opt_avalon8_asic_debug,
-		     "Disable A3212 debug."),
-	OPT_WITHOUT_ARG("--avalon8-ssplus-enable",
-		     opt_set_bool, &opt_avalon8_ssplus_enable,
-		     "Enable avalon8 smart speed plus."),
 #endif
 #ifdef USE_AVALON_MINER
 	OPT_WITH_CBARG("--avalonm-voltage",
@@ -10111,12 +10104,6 @@ int main(int argc, char *argv[])
 
 #ifdef USE_AVALON7
 	if (opt_avalon7_ssplus_enable) {
-		ssp_sorter_init(HT_SIZE, HT_PRB_LMT, HT_PRB_C1, HT_PRB_C2);
-		ssp_hasher_init();
-	}
-#endif
-#ifdef USE_AVALON8
-	if (opt_avalon8_ssplus_enable) {
 		ssp_sorter_init(HT_SIZE, HT_PRB_LMT, HT_PRB_C1, HT_PRB_C2);
 		ssp_hasher_init();
 	}

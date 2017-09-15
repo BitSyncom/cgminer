@@ -15,7 +15,6 @@
 #include "driver-avalon8.h"
 #include "crc.h"
 #include "sha2.h"
-#include "libssplus.h"
 #include "hexdump.c"
 
 #define get_fan_pwm(v)	(AVA8_PWM_MAX - (v) * AVA8_PWM_MAX / 100)
@@ -54,8 +53,6 @@ uint32_t opt_avalon8_th_init = AVA8_DEFAULT_TH_INIT;
 uint32_t opt_avalon8_th_ms = AVA8_DEFAULT_TH_MS;
 uint32_t opt_avalon8_th_timeout = AVA8_DEFAULT_TH_TIMEOUT;
 uint32_t opt_avalon8_nonce_mask = AVA8_DEFAULT_NONCE_MASK;
-bool opt_avalon8_asic_debug = true;
-bool opt_avalon8_ssplus_enable = false;
 
 uint32_t cpm_table[] =
 {
@@ -661,10 +658,6 @@ static int decode_pkg(struct cgpu_info *avalon8, struct avalon8_ret *ar, int mod
 
 		memcpy(&tmp, ar->data + 24, 4);
 		info->error_crc[modular_id][ar->idx] += be32toh(tmp);
-
-		memcpy(&tmp, ar->data + 28, 4);
-		info->mm_got_pairs[modular_id] += be32toh(tmp) >> 16;
-		info->mm_got_invalid_pairs[modular_id] += be32toh(tmp) & 0xffff;
 		break;
 	case AVA8_P_STATUS_PMU:
 		/* TODO: decode ntc led from PMU */
@@ -1297,93 +1290,6 @@ static inline void avalon8_detect(bool __maybe_unused hotplug)
 		avalon8_iic_detect();
 }
 
-#ifdef PAIR_CHECK
-static void copy_pool_stratum(struct pool *pool_stratum, struct pool *pool);
-#endif
-static void *avalon8_ssp_fill_pairs(void *userdata)
-{
-	char threadname[16];
-
-	struct cgpu_info *avalon8 = userdata;
-	struct avalon8_info *info = avalon8->device_data;
-	struct avalon8_pkg send_pkg;
-	ssp_pair pair;
-	uint8_t pair_counts;
-	int i, err, fill_timeout;;
-	uint32_t tmp;
-#ifdef PAIR_CHECK
-	struct pool pool_mirror, *pool;
-	uint32_t tail[2];
-	uint64_t pass, fail;
-#endif
-
-	snprintf(threadname, sizeof(threadname), "%d/Av8ssp", avalon8->device_id);
-	RenameThread(threadname);
-
-	/* timeout in ms = count of points * 4 * ntime_offset / max_ghs(10T) * 1000 */
-	fill_timeout = 80 * 4 * AVA8_DEFAULT_NTIME_OFFSET * 1.0 / 10000 * 1000;
-
-	cgsleep_ms(3000);
-	while (likely(!avalon8->shutdown)) {
-#ifdef PAIR_CHECK
-		if (ssp_sorter_get_pair(pair)) {
-			pool = current_pool();
-			copy_pool_stratum(&pool_mirror, pool);
-			tail[0] = gen_merkle_root(&pool_mirror, pair[0]);
-			tail[1] = gen_merkle_root(&pool_mirror, pair[1]);
-			if (tail[0] != tail[1]) {
-				fail++;
-				applog(LOG_NOTICE, "avalon8_ssp_fill_pairs: tail mismatch (%08x:%08x -> %08x:%08x)",
-						tail[0],
-						tail[1],
-						pair[0],
-						pair[1]);
-				applog(LOG_NOTICE, "avalon8_ssp_fill_pairs: tail mismatch detail %08x-%08x, F: %"PRIu64", P: %"PRIu64", Errate: %0.2f", tail[0], tail[1], fail, pass, fail * 1.0 / (pass + fail));
-			} else {
-				applog(LOG_NOTICE, "avalon8_ssp_fill_pairs: tail pass (%08x -> %08x:%08x)",
-						tail[0],
-						pair[0],
-						pair[1]);
-				pass++;
-			}
-		}
-		cgsleep_ms(opt_avalon8_polling_delay);
-#else
-		for (i = 1; i < AVA8_DEFAULT_MODULARS; i++) {
-			if (!info->enable[i])
-				continue;
-
-			pair_counts = 0;
-			memset(send_pkg.data, 0, AVA8_P_DATA_LEN);
-			while (pair_counts < 1) {
-				if (!ssp_sorter_get_pair(pair)) {
-					applog(LOG_DEBUG, "%s-%d: Waiting for pairs from ssp_sorter_get_pair",
-							avalon8->drv->name, avalon8->device_id);
-					continue;
-				}
-				tmp = be32toh(pair[0]);
-				memcpy(send_pkg.data + pair_counts * 8, &tmp, 4);
-				tmp = be32toh(pair[1]);
-				applog(LOG_DEBUG, "send pair %08x-%08x", pair[0], pair[1]);
-				memcpy(send_pkg.data + pair_counts * 8 + 4, &tmp, 4);
-				pair_counts++;
-				info->gen_pairs[i]++;
-			}
-
-			avalon8_init_pkg(&send_pkg, AVA8_P_PAIRS, 1, 1);
-			err = avalon8_iic_xfer_pkg(avalon8, i, &send_pkg, NULL);
-			if (err != AVA8_SEND_OK) {
-				applog(LOG_NOTICE, "%s-%d: send pair failed %d",
-						avalon8->drv->name, avalon8->device_id, err);
-			}
-		}
-		cgsleep_ms(fill_timeout);
-#endif
-	}
-
-	return NULL;
-}
-
 static bool avalon8_prepare(struct thr_info *thr)
 {
 	struct cgpu_info *avalon8 = thr->cgpu;
@@ -1405,13 +1311,6 @@ static bool avalon8_prepare(struct thr_info *thr)
 	cglock_init(&info->pool0.data_lock);
 	cglock_init(&info->pool1.data_lock);
 	cglock_init(&info->pool2.data_lock);
-
-	if (opt_avalon8_ssplus_enable) {
-		if (pthread_create(&(info->ssp_thr), NULL, avalon8_ssp_fill_pairs, (void *)avalon8)) {
-			applog(LOG_ERR, "%s-%d: create ssp thread failed", avalon8->drv->name, avalon8->device_id);
-			return false;
-		}
-	}
 
 	return true;
 }
@@ -1545,9 +1444,6 @@ static void detect_modules(struct cgpu_info *avalon8)
 		info->power_good[i] = 0;
 		memset(info->pmu_version[i], 0, sizeof(char) * 5 * AVA8_DEFAULT_PMU_CNT);
 		info->diff1[i] = 0;
-		info->mm_got_pairs[i] = 0;
-		info->mm_got_invalid_pairs[i] = 0;
-		info->gen_pairs[i] = 0;
 
 		applog(LOG_NOTICE, "%s-%d: New module detected! ID[%d-%x]",
 		       avalon8->drv->name, avalon8->device_id, i, info->mm_dna[i][AVA8_MM_DNA_LEN - 1]);
@@ -1710,15 +1606,11 @@ static void avalon8_init_setting(struct cgpu_info *avalon8, int addr)
 	 * set flags:
 	 * 0: ss switch
 	 * 1: nonce check
-	 * 2: asic debug
-	 * 3: ssp switch
 	 */
 	tmp = 1;
 	if (!opt_avalon8_smart_speed)
 	      tmp = 0;
 	tmp |= (1 << 1); /* Enable nonce check */
-	tmp |= (opt_avalon8_asic_debug << 2);
-	tmp |= (opt_avalon8_ssplus_enable << 3);
 	send_pkg.data[8] = tmp & 0xff;
 	send_pkg.data[9] = opt_avalon8_nonce_mask & 0xff;
 
@@ -1779,11 +1671,11 @@ static void avalon8_set_freq(struct cgpu_info *avalon8, int addr, int miner_id, 
 	for (i = 1; i < AVA8_DEFAULT_PLL_CNT; i++)
 		f = f > freq[i] ? f : freq[i];
 
-	tmp = ((AVA8_ASIC_TIMEOUT_CONST / f) * AVA8_DEFAULT_NTIME_OFFSET / 4) * (opt_avalon8_ssplus_enable ? 2 : 1);
+	tmp = ((AVA8_ASIC_TIMEOUT_CONST / f) * AVA8_DEFAULT_NTIME_OFFSET / 4);
 	tmp = be32toh(tmp);
 	memcpy(send_pkg.data + AVA8_DEFAULT_PLL_CNT * 4, &tmp, 4);
 
-	tmp = AVA8_ASIC_TIMEOUT_CONST / f * 98 / 100 * (opt_avalon8_ssplus_enable ? 2 : 1);
+	tmp = AVA8_ASIC_TIMEOUT_CONST / f * 98 / 100;
 	tmp = be32toh(tmp);
 	memcpy(send_pkg.data + AVA8_DEFAULT_PLL_CNT * 4 + 4, &tmp, 4);
 	applog(LOG_DEBUG, "%s-%d-%d: avalon8 set freq miner %x-%x",
@@ -1906,16 +1798,6 @@ static void avalon8_sswork_update(struct cgpu_info *avalon8)
 	pool = current_pool();
 	if (!pool->has_stratum)
 		quit(1, "%s-%d: MM has to use stratum pools", avalon8->drv->name, avalon8->device_id);
-
-	if (opt_avalon8_ssplus_enable) {
-		if (thr->clean_jobs) {
-			applog(LOG_DEBUG, "%s-%d: Update the stratum", avalon8->drv->name, avalon8->device_id);
-			thr->clean_jobs = false;
-		} else {
-			applog(LOG_DEBUG, "%s-%d: Ignore the stratum", avalon8->drv->name, avalon8->device_id);
-			return;
-		}
-	}
 
 	coinbase_len_prehash = pool->nonce2_offset - (pool->nonce2_offset % SHA256_BLOCK_SIZE);
 	coinbase_len_posthash = pool->coinbase_len - coinbase_len_prehash;
@@ -2264,11 +2146,6 @@ static struct api_data *avalon8_api_stats(struct cgpu_info *avalon8)
 			sprintf(buf, "%d ", info->error_crc[i][j]);
 			strcat(statbuf, buf);
 		}
-		statbuf[strlen(statbuf) - 1] = ']';
-
-		strcat(statbuf, " PAIRS[");
-		sprintf(buf, "%"PRIu64" %"PRIu64" %"PRIu64" ", info->mm_got_pairs[i], info->mm_got_invalid_pairs[i], info->gen_pairs[i]);
-		strcat(statbuf, buf);
 		statbuf[strlen(statbuf) - 1] = ']';
 
 		strcat(statbuf, " PVT_T[");

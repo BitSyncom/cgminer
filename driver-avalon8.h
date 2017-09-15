@@ -122,7 +122,6 @@
 #define AVA8_P_SET_PMU	0x24
 #define AVA8_P_SET_PLL	0x25
 #define AVA8_P_SET_SS	0x26
-#define AVA8_P_PAIRS	0x27
 #define AVA8_P_SET_FAC	0x28
 
 /* Have to send with I2C address */
@@ -274,13 +273,6 @@ struct avalon8_info {
 	uint16_t vout_adc_ratio[AVA8_DEFAULT_MODULARS];
 
 	bool conn_overloaded;
-
-	uint64_t mm_got_pairs[AVA8_DEFAULT_MODULARS];
-	uint64_t mm_got_invalid_pairs[AVA8_DEFAULT_MODULARS];
-	uint64_t gen_pairs[AVA8_DEFAULT_MODULARS];
-
-	/* SSP */
-	pthread_t ssp_thr;
 };
 
 struct avalon8_iic_info {
@@ -325,7 +317,5 @@ extern uint32_t opt_avalon8_th_init;
 extern uint32_t opt_avalon8_th_ms;
 extern uint32_t opt_avalon8_th_timeout;
 extern uint32_t opt_avalon8_nonce_mask;
-extern bool opt_avalon8_asic_debug;
-extern bool opt_avalon8_ssplus_enable;
 #endif /* USE_AVALON8 */
 #endif	/* _AVALON8_H_ */
