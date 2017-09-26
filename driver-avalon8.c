@@ -42,7 +42,7 @@ int opt_avalon8_aucxdelay = AVA8_AUC_XDELAY;
 int opt_avalon8_smart_speed = AVA8_DEFAULT_SMART_SPEED;
 /*
  * smart speed have 2 modes
- * 1. auto speed by A3212 chips
+ * 1. auto speed by A3210 chips
  * 2. option 1 + adjust by average frequency
  */
 bool opt_avalon8_iic_detect = AVA8_DEFAULT_IIC_DETECT;
@@ -1903,7 +1903,7 @@ static int64_t avalon8_scanhash(struct thr_info *thr)
 				if (opt_avalon8_smart_speed == AVA8_DEFAULT_SMARTSPEED_OFF)
 					break;
 
-				/* AVA8_DEFAULT_SMARTSPEED_MODE1: auto speed by A3212 chips */
+				/* AVA8_DEFAULT_SMARTSPEED_MODE1: auto speed by A3210 chips */
 				break;
 			default:
 				applog(LOG_ERR, "%s-%d-%d: Invalid frequency mode %d",
