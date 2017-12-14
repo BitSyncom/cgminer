@@ -2240,19 +2240,16 @@ char *set_avalon8_device_freq(struct cgpu_info *avalon8, char *arg)
 		applog(LOG_ERR, "invalid modular index: %d, valid range 0-%d", addr, (AVA8_DEFAULT_MODULARS - 1));
 		return "Invalid modular index to set_avalon8_device_freq";
 	}
-	if (!info->enable[addr]) {
-		applog(LOG_ERR, "Disabled modular:%d", addr);
-		return "Disabled modular to set_avalon8_device_freq";
-	}
-	if (miner_id > info->miner_count[addr]) {
-		applog(LOG_ERR, "invalid miner index: %d, valid range 0-%d", miner_id, info->miner_count[addr]);
-		return "Invalid miner index to set_avalon8_device_freq";
-	}
 
 	if (!addr) {
 		for (i = 1; i < AVA8_DEFAULT_MODULARS; i++) {
 			if (!info->enable[i])
 				continue;
+
+			if (miner_id > info->miner_count[i]) {
+				applog(LOG_ERR, "invalid miner index: %d, valid range 0-%d", miner_id, info->miner_count[i]);
+				return "Invalid miner index to set_avalon8_device_freq";
+			}
 
 			if (miner_id) {
 				for (k = 0; k < AVA8_DEFAULT_PLL_CNT; k++)
@@ -2269,6 +2266,16 @@ char *set_avalon8_device_freq(struct cgpu_info *avalon8, char *arg)
 			}
 		}
 	} else {
+		if (!info->enable[addr]) {
+			applog(LOG_ERR, "Disabled modular:%d", addr);
+			return "Disabled modular to set_avalon8_device_freq";
+		}
+
+		if (miner_id > info->miner_count[addr]) {
+			applog(LOG_ERR, "invalid miner index: %d, valid range 0-%d", miner_id, info->miner_count[addr]);
+			return "Invalid miner index to set_avalon8_device_freq";
+		}
+
 		if (miner_id) {
 			for (k = 0; k < AVA8_DEFAULT_PLL_CNT; k++)
 				info->set_frequency[addr][miner_id - 1][k] = val;
