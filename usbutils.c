@@ -72,6 +72,7 @@ static cgtimer_t usb11_cgt;
 #define AVALON4_TIMEOUT_MS 999
 #define AVALON7_TIMEOUT_MS 999
 #define AVALON8_TIMEOUT_MS 999
+#define AVALON9_TIMEOUT_MS 999
 #define AVALONM_TIMEOUT_MS 999
 #define KLONDIKE_TIMEOUT_MS 999
 #define COINTERRA_TIMEOUT_MS 999
@@ -91,6 +92,7 @@ static cgtimer_t usb11_cgt;
 #define AVALON4_TIMEOUT_MS 200
 #define AVALON7_TIMEOUT_MS 200
 #define AVALON8_TIMEOUT_MS 200
+#define AVALON9_TIMEOUT_MS 200
 #define AVALONM_TIMEOUT_MS 300
 #define KLONDIKE_TIMEOUT_MS 200
 #define COINTERRA_TIMEOUT_MS 200
@@ -311,6 +313,16 @@ static struct usb_epinfo ava8_epinfos[] = {
 
 static struct usb_intinfo ava8_ints[] = {
 	USB_EPS(1, ava8_epinfos)
+};
+#endif
+#ifdef USE_AVALON9
+static struct usb_epinfo ava9_epinfos[] = {
+	{ LIBUSB_TRANSFER_TYPE_BULK,	64,	EPI(1), 0, 0 },
+	{ LIBUSB_TRANSFER_TYPE_BULK,	64,	EPO(1), 0, 0 }
+};
+
+static struct usb_intinfo ava9_ints[] = {
+	USB_EPS(1, ava9_epinfos)
 };
 #endif
 #ifdef USE_AVALON_MINER
@@ -732,6 +744,20 @@ static struct usb_find_devices find_dev[] = {
 		.timeout = AVALON8_TIMEOUT_MS,
 		.latency = LATENCY_UNUSED,
 		INTINFO(ava8_ints) },
+#endif
+#ifdef USE_AVALON9
+	{
+		.drv = DRIVER_avalon9,
+		.name = "AV9",
+		.ident = IDENT_AV9,
+		.idVendor = 0x29f1,
+		.idProduct = 0x33f2,
+		.iManufacturer = "CANAAN",
+		.iProduct = "USB2IIC Converter",
+		.config = 1,
+		.timeout = AVALON9_TIMEOUT_MS,
+		.latency = LATENCY_UNUSED,
+		INTINFO(ava9_ints) },
 #endif
 #ifdef USE_AVALON_MINER
 	{
@@ -3840,6 +3866,7 @@ void usb_cleanup(void)
 			case DRIVER_avalon4:
 			case DRIVER_avalon7:
 			case DRIVER_avalon8:
+			case DRIVER_avalon9:
 			case DRIVER_avalonm:
 			case DRIVER_klondike:
 			case DRIVER_hashfast:
