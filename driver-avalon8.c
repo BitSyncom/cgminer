@@ -27,6 +27,9 @@ int opt_avalon8_fan_max = AVA8_DEFAULT_FAN_MAX;
 int opt_avalon8_voltage_level = AVA8_INVALID_VOLTAGE_LEVEL;
 int opt_avalon8_voltage_level_offset = AVA8_DEFAULT_VOLTAGE_LEVEL_OFFSET;
 
+int opt_avalon8_asic_otp = AVA8_INVALID_ASIC_OTP;
+static uint8_t opt_avalon8_cycle_hit_flag;
+
 int opt_avalon8_freq[AVA8_DEFAULT_PLL_CNT] =
 {
 	AVA8_DEFAULT_FREQUENCY,
@@ -369,6 +372,29 @@ char *set_avalon8_voltage_level_offset(char *arg)
        return NULL;
 }
 
+char *set_avalon8_asic_otp(char *arg)
+{
+       int val, ret;
+       char buf[70], *buf_ptr;
+
+       buf_ptr = buf;
+       
+       ret = sscanf(arg, "%d", &val);
+       if (ret < 1)
+		return "No value passed to avalon8-asic-otp";
+
+       if (val < 0 || val > (AVA8_DEFAULT_ASIC_MAX-1)) {
+		sprintf(buf, "Invalid value %d passed to avalon8-asic-otp! Valid range: 0-%d", val,(AVA8_DEFAULT_ASIC_MAX-1));
+		return buf_ptr;
+       }
+
+       opt_avalon8_asic_otp = val;
+
+       opt_avalon8_cycle_hit_flag = 0;
+       
+       return NULL;
+}
+
 static int avalon8_init_pkg(struct avalon8_pkg *pkg, uint8_t type, uint8_t idx, uint8_t cnt)
 {
 	unsigned short crc;
@@ -514,6 +540,8 @@ static int decode_pkg(struct cgpu_info *avalon8, struct avalon8_ret *ar, int mod
 	int64_t last_diff1;
 	uint16_t vin;
 
+	uint32_t asic_id,miner_id;
+	
 	if (likely(avalon8->thr))
 		thr = avalon8->thr[0];
 	if (ar->head[0] != AVA8_H1 && ar->head[1] != AVA8_H2) {
@@ -649,6 +677,45 @@ static int decode_pkg(struct cgpu_info *avalon8, struct avalon8_ret *ar, int mod
 		for (i = 0; i < info->miner_count[modular_id]; i++) {
 			memcpy(&vin, ar->data + 8 + i * 2, 2);
 			info->get_vin[modular_id][i] = decode_vin(info, modular_id, be16toh(vin));
+		}
+		break;
+	case AVA8_P_STATUS_OTP:
+		if (opt_avalon8_cycle_hit_flag)
+		      break;
+		
+		applog(LOG_DEBUG, "%s-%d-%d: AVA8_P_STATUS_OTP", avalon8->drv->name, avalon8->device_id, modular_id);
+		
+		/* ASIC reading cycle limit hit */
+		if (ar->data[17]) {
+			applog(LOG_DEBUG, "%s-%d-%d: AVA8_P_STATUS_OTP, OTP read cycle hit!", avalon8->drv->name, avalon8->device_id, modular_id);
+			opt_avalon8_cycle_hit_flag = 1;
+			break;
+		}
+
+		miner_id = ar->idx;
+		if (miner_id > AVA8_DEFAULT_MINER_CNT)
+		      break;
+
+		/* the reading step on MM side, 0:byte 3-0, 1:byte 7-4, 2:byte 11-8 */
+		switch (ar->data[15]) {
+		case 0:
+			memcpy(info->otp_info[miner_id], ar->data, 4);
+			break;
+		case 1:
+			memcpy(info->otp_info[miner_id] + 4, ar->data + 4, 4);
+			break;
+		case 2:
+			memcpy(info->otp_info[miner_id] + 8, ar->data + 8, 4);
+			break;
+		default:
+			break;
+		}
+		memcpy(info->otp_info[miner_id] + 15, ar->data + 15, 4);
+
+		/* check for invisible charactor */
+		for(i = 0; i < 11; i++) {
+			if ((info->otp_info[miner_id][i] < 32) || (info->otp_info[miner_id][i] > 126))
+				info->otp_info[miner_id][i] = '0';
 		}
 		break;
 	case AVA8_P_STATUS_VOLT:
@@ -1462,6 +1529,11 @@ static void detect_modules(struct cgpu_info *avalon8)
 
 			for (k = 0; k < AVA8_DEFAULT_PLL_CNT; k++)
 				info->set_frequency[i][j][k] = avalon8_dev_table[dev_index].set_freq[k];
+			
+			if (AVA8_INVALID_ASIC_OTP == opt_avalon8_asic_otp)
+				info->set_asic_otp[i][j] = 0; /* default asic: 0 */
+			else
+				info->set_asic_otp[i][j] = opt_avalon8_asic_otp;
 		}
 
 		info->freq_mode[i] = AVA8_FREQ_INIT_MODE;
@@ -1717,6 +1789,36 @@ static void avalon8_set_voltage_level(struct cgpu_info *avalon8, int addr, unsig
 
 	/* Package the data */
 	avalon8_init_pkg(&send_pkg, AVA8_P_SET_VOLT, 1, 1);
+	if (addr == AVA8_MODULE_BROADCAST)
+		avalon8_send_bc_pkgs(avalon8, &send_pkg);
+	else
+		avalon8_iic_xfer_pkg(avalon8, addr, &send_pkg, NULL);
+}
+
+static void avalon8_set_asic_otp(struct cgpu_info *avalon8, int addr, unsigned int asic[])
+{
+	struct avalon8_info *info = avalon8->device_data;
+	struct avalon8_pkg send_pkg;
+	uint32_t tmp, core_sel;
+	uint8_t i;
+
+	memset(send_pkg.data, 0, AVA8_P_DATA_LEN);
+
+	/* NOTE: miner_count should <= 8 */
+	for (i = 0; i < info->miner_count[addr]; i++) {
+		if (asic[i] < 0)
+		      asic[i] = 0;
+		else if (asic[i] > (AVA8_DEFAULT_ASIC_MAX -1))
+			asic[i] = AVA8_DEFAULT_ASIC_MAX - 1;
+		tmp = be32toh(asic[i]);
+		memcpy(send_pkg.data + i * 4, &tmp, 4);
+	}
+	applog(LOG_DEBUG, "%s-%d-%d: avalon8 set asic for otp reading %d, (%d-%d)",
+			avalon8->drv->name, avalon8->device_id, addr,
+			i, asic[0], asic[info->miner_count[addr] - 1]);
+
+	/* Package the data */
+	avalon8_init_pkg(&send_pkg, AVA8_P_SET_ASIC_OTP, 1, 1);
 	if (addr == AVA8_MODULE_BROADCAST)
 		avalon8_send_bc_pkgs(avalon8, &send_pkg);
 	else
@@ -2027,6 +2129,7 @@ static int64_t avalon8_scanhash(struct thr_info *thr)
 		if (update_settings) {
 			cg_wlock(&info->update_lock);
 			avalon8_set_voltage_level(avalon8, i, info->set_voltage_level[i]);
+			avalon8_set_asic_otp(avalon8, i, info->set_asic_otp[i]);
 			for (j = 0; j < info->miner_count[i]; j++)
 				avalon8_set_freq(avalon8, i, j, info->set_frequency[i][j]);
 			if (opt_avalon8_smart_speed) {
@@ -2156,6 +2259,31 @@ static struct api_data *avalon8_api_stats(struct cgpu_info *avalon8)
 				info->mm_dna[i][6],
 				info->mm_dna[i][7]);
 		strcat(statbuf, buf);
+	
+		if (opt_debug) {
+			for (k = 0; k < AVA8_DEFAULT_MINER_CNT; k++) {
+				sprintf(buf, " LotID%d_ASIC%d[%c%c%c%c%c%c%c%c%c]", k,
+				info->otp_info[k][16],
+				info->otp_info[k][0],
+				info->otp_info[k][1],
+				info->otp_info[k][2],
+				info->otp_info[k][3],
+				info->otp_info[k][4],
+				info->otp_info[k][5],
+				info->otp_info[k][6],
+				info->otp_info[k][7],
+				info->otp_info[k][8]);
+				strcat(statbuf, buf);
+			}
+			
+			for (k = 0; k < AVA8_DEFAULT_MINER_CNT; k++) {
+				sprintf(buf, " WaferID%d_ASIC%d[%c%c]", k,
+				info->otp_info[k][16],
+				info->otp_info[k][9],
+				info->otp_info[k][10]);
+				strcat(statbuf, buf);
+			}
+		}
 
 		sprintf(buf, " Elapsed[%.0f]", tdiff(&current, &(info->elapsed[i])));
 		strcat(statbuf, buf);
