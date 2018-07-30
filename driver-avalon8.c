@@ -32,6 +32,10 @@ int opt_avalon8_freq[AVA8_DEFAULT_PLL_CNT] =
 	AVA8_DEFAULT_FREQUENCY,
 	AVA8_DEFAULT_FREQUENCY,
 	AVA8_DEFAULT_FREQUENCY,
+	AVA8_DEFAULT_FREQUENCY,
+	AVA8_DEFAULT_FREQUENCY,
+	AVA8_DEFAULT_FREQUENCY,
+	AVA8_DEFAULT_FREQUENCY,
 	AVA8_DEFAULT_FREQUENCY
 };
 
@@ -62,6 +66,9 @@ uint32_t opt_avalon8_mux_l2h = AVA8_DEFAULT_MUX_L2H;
 uint32_t opt_avalon8_mux_h2l = AVA8_DEFAULT_MUX_H2L;
 uint32_t opt_avalon8_h2ltime0_spd = AVA8_DEFAULT_H2LTIME0_SPD;
 uint32_t opt_avalon8_roll_enable = AVA8_DEFAULT_ROLL_ENABLE;
+
+/* Setting timeout need freq vlaues */
+uint32_t avalon8_set_timeout_freq = 1;
 
 uint32_t cpm_table[] =
 {
@@ -129,22 +136,11 @@ struct avalon8_dev_description avalon8_dev_table[] = {
 			AVA8_DEFAULT_FREQUENCY_0M,
 			AVA8_DEFAULT_FREQUENCY_0M,
 			AVA8_DEFAULT_FREQUENCY_0M,
-			AVA8_DEFAULT_FREQUENCY_650M
-		}
-	},
-	{
-		"841",
-		841,
-		4,
-		26,
-		AVA8_MM841_VIN_ADC_RATIO,
-		AVA8_MM841_VOUT_ADC_RATIO,
-		5,
-		{
+			AVA8_DEFAULT_FREQUENCY_650M,
 			AVA8_DEFAULT_FREQUENCY_0M,
 			AVA8_DEFAULT_FREQUENCY_0M,
 			AVA8_DEFAULT_FREQUENCY_0M,
-			AVA8_DEFAULT_FREQUENCY_775M
+			AVA8_DEFAULT_FREQUENCY_0M
 		}
 	}
 };
@@ -152,19 +148,6 @@ struct avalon8_dev_description avalon8_dev_table[] = {
 static uint32_t api_get_cpm(uint32_t freq)
 {
 	return cpm_table[freq / 25];
-}
-
-static uint32_t encode_voltage(int volt_level)
-{
-	if (volt_level > AVA8_DEFAULT_VOLTAGE_LEVEL_MAX)
-	      volt_level = AVA8_DEFAULT_VOLTAGE_LEVEL_MAX;
-	else if (volt_level < AVA8_DEFAULT_VOLTAGE_LEVEL_MIN)
-	      volt_level = AVA8_DEFAULT_VOLTAGE_LEVEL_MIN;
-
-	if (volt_level < 0)
-		return 0x8080 | (-volt_level);
-
-	return 0x8000 | volt_level;
 }
 
 static uint32_t decode_voltage(struct avalon8_info *info, int modular_id, uint32_t volt)
@@ -609,23 +592,23 @@ static int decode_pkg(struct cgpu_info *avalon8, struct avalon8_ret *ar, int mod
 
 		memcpy(&tmp, ar->data, 2);
 		tmp = be16toh(tmp);
-		/* current_out = (2.5 - (tmp * 3.3 / 1024)) / 0.04 */
-		info->current_out[modular_id][0] = 62500 - 80.566 * tmp;
+		/* current_out = 3.3 / 1024 * tmp * 1000 / 0.05 */
+		info->current_out[modular_id][0] = 64.453 * tmp;
 
 		memcpy(&tmp, ar->data + 2, 2);
 		tmp = be16toh(tmp);
-		/* current_top = (tmp * 3.3 / 1024) / 0.75 / 200 */
-		info->current_top[modular_id][0] = 0.021484 * tmp;
+		/* current_top = 3.3 / 1024 * 5 * tmp */
+		info->current_top[modular_id][0] = 3.3 / 1024 * 5 * tmp;
 
 		memcpy(&tmp, ar->data + 4, 2);
 		tmp = be16toh(tmp);
-		/* current_ioa = (tmp * 3.3 / 1024) / 0.75/ 200 */
-		info->current_ioa[modular_id][0] = 0.021484 * tmp;
+		/* current_ioa = 3.3 / 1024 * 5 * tmp */
+		info->current_ioa[modular_id][0] = 3.3 / 1024 * 5 * tmp;
 
 		memcpy(&tmp, ar->data + 6, 2);
 		tmp = be16toh(tmp);
-		/* current_ioa = (tmp * 3.3 / 1024) / 0.75 / 200 */
-		info->current_iob[modular_id][0] = 0.021484 * tmp;
+		/* current_iob = 3.3 / 1024 * 5 * tmp */
+		info->current_iob[modular_id][0] = 3.3 / 1024 * 5 * tmp;
 
 		memcpy(&info->pmu_version[modular_id][0], ar->data + 24, 4);
 		info->pmu_version[modular_id][0][4] = '\0';
@@ -634,22 +617,25 @@ static int decode_pkg(struct cgpu_info *avalon8, struct avalon8_ret *ar, int mod
 		applog(LOG_DEBUG, "%s-%d-%d: AVA8_P_STATUS_VOLT", avalon8->drv->name, avalon8->device_id, modular_id);
 		for (i = 0; i < info->miner_count[modular_id]; i++) {
 			memcpy(&tmp, ar->data + i * 4, 4);
-			info->get_voltage[modular_id][i] = be32toh(tmp);
+			info->get_voltage[modular_id][i] = be32toh(tmp) * 1000 / 4096;
 			/* NOTE: get_vin same as get_voltage */
-			info->get_vin[modular_id][i] = be32toh(tmp);
+			info->get_vin[modular_id][i] = be32toh(tmp) * 1000 / 4096;
 		}
 		break;
 	case AVA8_P_STATUS_PLL:
 		applog(LOG_DEBUG, "%s-%d-%d: AVA8_P_STATUS_PLL", avalon8->drv->name, avalon8->device_id, modular_id);
-		for (i = 0; i < AVA8_DEFAULT_PLL_CNT; i++) {
-			memcpy(&tmp, ar->data + i * 4, 4);
-			info->get_pll[modular_id][ar->idx][i] = be32toh(tmp);
-
-			memcpy(&tmp, ar->data + AVA8_DEFAULT_PLL_CNT * 4 + i * 4, 4);
-			tmp = be32toh(tmp);
-			if (tmp)
-				info->set_frequency[modular_id][ar->idx][i] = tmp;
-		}
+		if (ar->opt)
+			for (i = 0; i < AVA8_DEFAULT_PLL_CNT; i++) {
+				memcpy(&tmp, ar->data + i * 4, 4);
+				info->get_pll[modular_id][ar->idx][i] = be32toh(tmp);
+			}
+		else
+			for (i = 0; i < AVA8_DEFAULT_PLL_CNT; i++) {
+				memcpy(&tmp, ar->data + i * 4, 4);
+				tmp = be32toh(tmp);
+				if (tmp)
+					info->set_frequency[modular_id][ar->idx][i] = tmp;
+			}
 		break;
 	case AVA8_P_STATUS_PVT:
 		applog(LOG_DEBUG, "%s-%d-%d: AVA8_P_STATUS_PVT", avalon8->drv->name, avalon8->device_id, modular_id);
@@ -1592,7 +1578,7 @@ static void avalon8_init_setting(struct cgpu_info *avalon8, int addr)
 
 	memset(send_pkg.data, 0, AVA8_P_DATA_LEN);
 
-	tmp = be32toh(opt_avalon8_freq_sel);
+	tmp = be32toh(opt_avalon8_freq_sel + 1);
 	memcpy(send_pkg.data + 4, &tmp, 4);
 
 	/*
@@ -1646,8 +1632,7 @@ static void avalon8_set_voltage_level(struct cgpu_info *avalon8, int addr, unsig
 
 	/* NOTE: miner_count should <= 8 */
 	for (i = 0; i < info->miner_count[addr]; i++) {
-		tmp = be32toh(encode_voltage(voltage[i] +
-				opt_avalon8_voltage_level_offset));
+		tmp = be32toh(voltage[i] + opt_avalon8_voltage_level_offset);
 		memcpy(send_pkg.data + i * 4, &tmp, 4);
 	}
 	applog(LOG_DEBUG, "%s-%d-%d: avalon8 set voltage miner %d, (%d-%d)",
@@ -1679,16 +1664,8 @@ static void avalon8_set_freq(struct cgpu_info *avalon8, int addr, int miner_id, 
 	for (i = 1; i < AVA8_DEFAULT_PLL_CNT; i++)
 		f = f > freq[i] ? f : freq[i];
 
-	f = f ? f : 1;
+	avalon8_set_timeout_freq = f ? f : 1;
 
-	/* TODO: adjust it according to frequency */
-	tmp = 100;
-	tmp = be32toh(tmp);
-	memcpy(send_pkg.data + AVA8_DEFAULT_PLL_CNT * 4, &tmp, 4);
-
-	tmp = AVA8_ASIC_TIMEOUT_CONST / f * 83 / 100;
-	tmp = be32toh(tmp);
-	memcpy(send_pkg.data + AVA8_DEFAULT_PLL_CNT * 4 + 4, &tmp, 4);
 	applog(LOG_DEBUG, "%s-%d-%d: avalon8 set freq miner %x-%x",
 			avalon8->drv->name, avalon8->device_id, addr,
 			miner_id, be32toh(tmp));
@@ -1805,8 +1782,19 @@ static void avalon8_stratum_finish(struct cgpu_info *avalon8)
 static void avalon8_set_finish(struct cgpu_info *avalon8, int addr)
 {
 	struct avalon8_pkg send_pkg;
+	uint32_t tmp;
 
 	memset(send_pkg.data, 0, AVA8_P_DATA_LEN);
+
+	/* TODO: adjust it according to frequency */
+	tmp = 100;
+	tmp = be32toh(tmp);
+	memcpy(send_pkg.data, &tmp, 4);
+
+	tmp = AVA8_ASIC_TIMEOUT_CONST / avalon8_set_timeout_freq * 83 / 100;
+	tmp = be32toh(tmp);
+	memcpy(send_pkg.data + 4, &tmp, 4);
+
 	avalon8_init_pkg(&send_pkg, AVA8_P_SET_FIN, 1, 1);
 	avalon8_iic_xfer_pkg(avalon8, addr, &send_pkg, NULL);
 }
@@ -2143,7 +2131,7 @@ static struct api_data *avalon8_api_stats(struct cgpu_info *avalon8)
 		mhsmm = avalon8_hash_cal(avalon8, i);
 		sprintf(buf, " GHSmm[%.2f] WU[%.2f] Freq[%.2f]", (float)mhsmm / 1000,
 					info->diff1[i] / tdiff(&current, &(info->elapsed[i])) * 60.0,
-					(float)mhsmm / (info->asic_count[i] * info->miner_count[i] * 172));
+					(float)mhsmm / (info->asic_count[i] * info->miner_count[i] * AVA8_DEFAULT_CORE_COUNT));
 		strcat(statbuf, buf);
 
 		sprintf(buf, " PG[%d]", info->power_good[i]);
@@ -2636,7 +2624,7 @@ static void avalon8_statline_before(char *buf, size_t bufsiz, struct cgpu_info *
 			temp = get_temp_max(info, i);
 
 		mhsmm = avalon8_hash_cal(avalon8, i);
-		frequency += (mhsmm / (info->asic_count[i] * info->miner_count[i] * 172));
+		frequency += (mhsmm / (info->asic_count[i] * info->miner_count[i] * AVA8_DEFAULT_CORE_COUNT));
 		ghs_sum += (mhsmm / 1000);
 
 		for (j = 0; j < info->miner_count[i]; j++) {
