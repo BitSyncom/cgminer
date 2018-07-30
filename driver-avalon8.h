@@ -35,6 +35,8 @@
 #define AVA8_DEFAULT_VOLTAGE_LEVEL_OFFSET	0
 #define AVA8_DEFAULT_VOLTAGE_LEVEL_OFFSET_MAX	1
 
+#define AVA8_INVALID_CORE_OTP	-1
+
 #define AVA8_DEFAULT_FACTORY_INFO_0_MIN		-15
 #define AVA8_DEFAULT_FACTORY_INFO_0		0
 #define AVA8_DEFAULT_FACTORY_INFO_0_MAX		15
@@ -110,6 +112,7 @@
 #define AVA8_MODULE_DETECT_INTERVAL	30 /* 30 s */
 
 #define AVA8_AUC_VER_LEN	12	/* Version length: 12 (AUC-YYYYMMDD) */
+#define AVA8_OTP_LEN	        32
 #define AVA8_AUC_SPEED		400000
 #define AVA8_AUC_XDELAY  	19200	/* 4800 = 1ms in AUC (11U14)  */
 #define AVA8_AUC_P_SIZE		64
@@ -172,6 +175,9 @@
 #define AVA8_P_STATUS_PVT		0x4c
 #define AVA8_P_STATUS_FAC		0x4d
 #define AVA8_P_STATUS_OC		0x4e
+
+#define AVA8_P_STATUS_OTP		0x4f
+#define AVA8_P_SET_CORE_OTP		0x50
 
 #define AVA8_MODULE_BROADCAST	0
 /* End of avalon8 protocol package type */
@@ -237,6 +243,7 @@ struct avalon8_info {
 
 	/* For connecter */
 	char auc_version[AVA8_AUC_VER_LEN + 1];
+	uint8_t otp_info[AVA8_DEFAULT_MINER_CNT][AVA8_OTP_LEN + 1];
 
 	int auc_speed;
 	int auc_xdelay;
@@ -279,6 +286,7 @@ struct avalon8_info {
 	time_t last_temp_time[AVA8_DEFAULT_MODULARS];
 
 	int set_voltage_level[AVA8_DEFAULT_MODULARS][AVA8_DEFAULT_MINER_CNT];
+	int set_core_otp[AVA8_DEFAULT_MODULARS][AVA8_DEFAULT_MINER_CNT];
 	uint32_t set_frequency[AVA8_DEFAULT_MODULARS][AVA8_DEFAULT_MINER_CNT][AVA8_DEFAULT_PLL_CNT];
 	uint32_t get_frequency[AVA8_DEFAULT_MODULARS][AVA8_DEFAULT_MINER_CNT][AVA8_DEFAULT_ASIC_MAX][AVA8_DEFAULT_PLL_CNT];
 
@@ -328,6 +336,7 @@ struct avalon8_dev_description {
 	uint16_t vout_adc_ratio;
 	int set_voltage_level;
 	uint16_t set_freq[AVA8_DEFAULT_PLL_CNT];
+	int set_core_otp;
 };
 
 #define AVA8_WRITE_SIZE (sizeof(struct avalon8_pkg))
@@ -340,6 +349,7 @@ extern char *set_avalon8_fan(char *arg);
 extern char *set_avalon8_freq(char *arg);
 extern char *set_avalon8_voltage_level(char *arg);
 extern char *set_avalon8_voltage_level_offset(char *arg);
+extern char *set_avalon8_core_otp(char *arg);
 extern int opt_avalon8_temp_target;
 extern int opt_avalon8_polling_delay;
 extern int opt_avalon8_aucspeed;
