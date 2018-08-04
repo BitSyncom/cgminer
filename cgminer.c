@@ -1550,7 +1550,7 @@ static struct opt_table opt_config_table[] = {
 		     set_int_0_to_65535, opt_show_intval, &opt_avalon8_th_init,
 		     "Set A3210 th init value"),
 	OPT_WITH_ARG("--avalon8-th-ms",
-		     set_int_0_to_65535, opt_show_intval, &opt_avalon8_th_ms,
+		     set_int_0_to_32767, opt_show_intval, &opt_avalon8_th_ms,
 		     "Set A3210 th ms value"),
 	OPT_WITH_ARG("--avalon8-th-timeout",
 		     opt_set_uintval, opt_show_uintval, &opt_avalon8_th_timeout,
