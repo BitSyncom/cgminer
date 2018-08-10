@@ -205,6 +205,12 @@
 #define AVA8_MM841_VOUT_ADC_RATIO	(3.3 / 4095.0 * 63.0 / 20.0 * 10000.0 * 100.0)
 #define AVA8_MM851_VOUT_ADC_RATIO	(3.3 / 4095.0 * 72.3 / 20.0 * 10000.0 * 100.0)
 
+#define AVA8_OTP_INDEX_READ_STEP        27
+#define AVA8_OTP_INDEX_ASIC_NUM         28
+#define AVA8_OTP_INDEX_CYCLE_HIT        29
+#define AVA8_OTP_INFO_LOTIDCRC_OFFSET   0
+#define AVA8_OTP_INFO_LOTID_OFFSET      4
+
 struct avalon8_pkg {
 	uint8_t head[2];
 	uint8_t type;
@@ -263,7 +269,7 @@ struct avalon8_info {
 	uint32_t total_asics[AVA8_DEFAULT_MODULARS];
 	uint32_t max_ntime; /* Maximum: 7200 */
 
-	uint8_t otp_info[AVA8_DEFAULT_MINER_CNT][AVA8_OTP_LEN + 1];
+	uint8_t otp_info[AVA8_DEFAULT_MODULARS][AVA8_DEFAULT_MINER_CNT][AVA8_OTP_LEN + 1];
 
 	int mod_type[AVA8_DEFAULT_MODULARS];
 	uint8_t miner_count[AVA8_DEFAULT_MODULARS];
