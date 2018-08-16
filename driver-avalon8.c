@@ -374,20 +374,20 @@ char *set_avalon8_voltage_level_offset(char *arg)
 
 char *set_avalon8_asic_otp(char *arg)
 {
-       int val, ret;
+	int val, ret;
 
-       ret = sscanf(arg, "%d", &val);
-       if (ret < 1)
-		return "No value passed to avalon8-asic-otp";
+	ret = sscanf(arg, "%d", &val);
+	if (ret < 1)
+		return "No value passed to avalon8-cinfo-asic";
 
-       if (val < 0 || val > (AVA8_DEFAULT_ASIC_MAX - 1))
-		return "Invalid value passed to avalon8-asic-otp";
+	if (val < 0 || val > (AVA8_DEFAULT_ASIC_MAX - 1))
+		return "Invalid value passed to avalon8-cinfo-asic";
 
-       opt_avalon8_asic_otp = val;
+	opt_avalon8_asic_otp = val;
 
-       opt_avalon8_cycle_hit_flag = 0;
+	opt_avalon8_cycle_hit_flag = 0;
 
-       return NULL;
+	return NULL;
 }
 
 static int avalon8_init_pkg(struct avalon8_pkg *pkg, uint8_t type, uint8_t idx, uint8_t cnt)
@@ -697,13 +697,22 @@ static int decode_pkg(struct cgpu_info *avalon8, struct avalon8_ret *ar, int mod
 			memcpy(info->otp_info[modular_id][miner_id] + AVA8_OTP_INFO_LOTIDCRC_OFFSET, ar->data + AVA8_OTP_INFO_LOTIDCRC_OFFSET, 4);
 			break;
 		case 1:
-			memcpy(info->otp_info[modular_id][miner_id] + AVA8_OTP_INFO_LOTID_OFFSET, ar->data + AVA8_OTP_INFO_LOTID_OFFSET, 4);
+			memcpy(info->otp_info[modular_id][miner_id] + AVA8_OTP_INFO_LOTIDCRC_OFFSET + 4, ar->data + AVA8_OTP_INFO_LOTIDCRC_OFFSET + 4, 2);
 			break;
 		case 2:
-			memcpy(info->otp_info[modular_id][miner_id] + AVA8_OTP_INFO_LOTID_OFFSET + 4, ar->data + AVA8_OTP_INFO_LOTID_OFFSET + 4, 4);
+			memcpy(info->otp_info[modular_id][miner_id] + AVA8_OTP_INFO_LOTID_OFFSET, ar->data + AVA8_OTP_INFO_LOTID_OFFSET, 4);
 			break;
 		case 3:
+			memcpy(info->otp_info[modular_id][miner_id] + AVA8_OTP_INFO_LOTID_OFFSET + 4, ar->data + AVA8_OTP_INFO_LOTID_OFFSET + 4, 4);
+			break;
+		case 4:
 			memcpy(info->otp_info[modular_id][miner_id] + AVA8_OTP_INFO_LOTID_OFFSET + 8, ar->data + AVA8_OTP_INFO_LOTID_OFFSET + 8, 4);
+			break;
+		case 5:
+			memcpy(info->otp_info[modular_id][miner_id] + AVA8_OTP_INFO_LOTID_OFFSET + 12, ar->data + AVA8_OTP_INFO_LOTID_OFFSET + 12, 4);
+			break;
+		case 6:
+			memcpy(info->otp_info[modular_id][miner_id] + AVA8_OTP_INFO_LOTID_OFFSET + 16, ar->data + AVA8_OTP_INFO_LOTID_OFFSET + 16, 4);
 			break;
 		default:
 			break;
@@ -712,11 +721,6 @@ static int decode_pkg(struct cgpu_info *avalon8, struct avalon8_ret *ar, int mod
         /* get the data behind AVA8_OTP_INDEX_READ_STEP for later displaying use*/
 		memcpy(info->otp_info[modular_id][miner_id] + AVA8_OTP_INDEX_READ_STEP, ar->data + AVA8_OTP_INDEX_READ_STEP, 4);
 
-		/* check for invisible charactors, just for lot id and wafer id, 9+2 bytes*/
-		for(i = AVA8_OTP_INFO_LOTID_OFFSET; i < (AVA8_OTP_INFO_LOTID_OFFSET + 11); i++) {
-			if ((info->otp_info[modular_id][miner_id][i] < 32) || (info->otp_info[modular_id][miner_id][i] > 126))
-				info->otp_info[modular_id][miner_id][i] = '0';
-		}
 		break;
 	case AVA8_P_STATUS_VOLT:
 		applog(LOG_DEBUG, "%s-%d-%d: AVA8_P_STATUS_VOLT", avalon8->drv->name, avalon8->device_id, modular_id);
@@ -1534,12 +1538,7 @@ static void detect_modules(struct cgpu_info *avalon8)
 				info->set_asic_otp[i][j] = 0; /* default asic: 0 */
 			else
 				info->set_asic_otp[i][j] = opt_avalon8_asic_otp;
-
-            for(k = AVA8_OTP_INFO_LOTID_OFFSET; k < (AVA8_OTP_INFO_LOTID_OFFSET + 11); k++) {
-                if ((info->otp_info[i][j][k] < 32) || (info->otp_info[i][j][k] > 126))
-                    info->otp_info[i][j][k] = '0';
-            }
-        }
+		}
 
 		info->freq_mode[i] = AVA8_FREQ_INIT_MODE;
 		memset(info->get_pll[i], 0, sizeof(uint32_t) * info->miner_count[i] * AVA8_DEFAULT_PLL_CNT);
@@ -2267,40 +2266,19 @@ static struct api_data *avalon8_api_stats(struct cgpu_info *avalon8)
 
 		if (opt_debug) {
 			for (k = 0; k < AVA8_DEFAULT_MINER_CNT; k++) {
-				sprintf(buf, " LotID%d_ASIC%d[%c%c%c%c%c%c%c%c%c]", k,
-				info->otp_info[i][k][AVA8_OTP_INDEX_ASIC_NUM],
-				info->otp_info[i][k][AVA8_OTP_INFO_LOTID_OFFSET],
-				info->otp_info[i][k][AVA8_OTP_INFO_LOTID_OFFSET + 1],
-				info->otp_info[i][k][AVA8_OTP_INFO_LOTID_OFFSET + 2],
-				info->otp_info[i][k][AVA8_OTP_INFO_LOTID_OFFSET + 3],
-				info->otp_info[i][k][AVA8_OTP_INFO_LOTID_OFFSET + 4],
-				info->otp_info[i][k][AVA8_OTP_INFO_LOTID_OFFSET + 5],
-				info->otp_info[i][k][AVA8_OTP_INFO_LOTID_OFFSET + 6],
-				info->otp_info[i][k][AVA8_OTP_INFO_LOTID_OFFSET + 7],
-				info->otp_info[i][k][AVA8_OTP_INFO_LOTID_OFFSET + 8]);
+				sprintf(buf, " CINFO%d%d[", k,
+					info->otp_info[i][k][AVA8_OTP_INDEX_ASIC_NUM]);
+				strcat(statbuf, buf);
+
+				for (m = 0; m < 23; m++) {
+					sprintf(buf, "%02x", info->otp_info[i][k][m]);
+					strcat(statbuf, buf);
+				}
+
+				sprintf(buf, "]");
 				strcat(statbuf, buf);
 			}
-
-			for (k = 0; k < AVA8_DEFAULT_MINER_CNT; k++) {
-				sprintf(buf, " WaferID%d_ASIC%d[%c%c]", k,
-				info->otp_info[i][k][AVA8_OTP_INDEX_ASIC_NUM],
-				info->otp_info[i][k][AVA8_OTP_INFO_LOTID_OFFSET + 9],
-				info->otp_info[i][k][AVA8_OTP_INFO_LOTID_OFFSET + 10]);
-				strcat(statbuf, buf);
-			}
-
-			for (k = 0; k < AVA8_DEFAULT_MINER_CNT; k++) {
-				sprintf(buf, " LotIDCRC%d_ASIC%d[%02x%02x%02x%02x]", k,
-				info->otp_info[i][k][AVA8_OTP_INDEX_ASIC_NUM],
-				info->otp_info[i][k][AVA8_OTP_INFO_LOTIDCRC_OFFSET],
-				info->otp_info[i][k][AVA8_OTP_INFO_LOTIDCRC_OFFSET + 1],
-				info->otp_info[i][k][AVA8_OTP_INFO_LOTIDCRC_OFFSET + 2],
-				info->otp_info[i][k][AVA8_OTP_INFO_LOTIDCRC_OFFSET + 3]);
-				strcat(statbuf, buf);
-			}
-
 		}
-
 		sprintf(buf, " Elapsed[%.0f]", tdiff(&current, &(info->elapsed[i])));
 		strcat(statbuf, buf);
 
