@@ -1754,6 +1754,9 @@ static struct opt_table opt_config_table[] = {
 	OPT_WITH_ARG("--avalon9-spdhigh",
 		     set_int_0_to_7, opt_show_intval, &opt_avalon9_spdhigh,
 		     "Set Avalon9 spdhigh, range 0-7."),
+	OPT_WITH_ARG("--avalon9-tbase",
+		     set_int_0_to_255, opt_show_intval, &opt_avalon9_tbase,
+		     "Set Avalon9 tbase and use (0-8) bits, range 0-255."),
 #endif
 #ifdef USE_AVALON_MINER
 	OPT_WITH_CBARG("--avalonm-voltage",

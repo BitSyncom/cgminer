@@ -82,6 +82,7 @@
 #define AVA9_DEFAULT_ROLL_ENABLE	1
 #define AVA9_DEFAULT_SPDLOW		5
 #define AVA9_DEFAULT_SPDHIGH		7
+#define AVA9_DEFAULT_TBASE		0
 
 #define AVA9_DEFAULT_LV2_TH_MS		0
 #define AVA9_DEFAULT_LV3_TH_MS		0
@@ -350,6 +351,7 @@ extern uint32_t opt_avalon9_h2ltime0_spd;
 extern uint32_t opt_avalon9_roll_enable;
 extern uint32_t opt_avalon9_spdlow;
 extern uint32_t opt_avalon9_spdhigh;
+extern uint32_t opt_avalon9_tbase;
 extern uint32_t opt_avalon9_lv2_th_ms;
 extern uint32_t opt_avalon9_lv3_th_ms;
 extern uint32_t opt_avalon9_lv4_th_ms;
