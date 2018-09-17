@@ -18,11 +18,9 @@
 
 #define AVA9_DEFAULT_FAN_MIN		5 /* % */
 #define AVA9_DEFAULT_FAN_MAX		100
-#define AVA9_DEFAULT_FAN_INTERVAL	15 /* Seconds */
 
 #define AVA9_DEFAULT_TEMP_TARGET	97
 #define AVA9_DEFAULT_TEMP_OVERHEAT	105
-#define AVA9_DEFAULT_TEMP_HYSTERESIS	5
 
 #define AVA9_DEFAULT_VOLTAGE_LEVEL_MIN	-15
 #define AVA9_DEFAULT_VOLTAGE_LEVEL_MAX	15
@@ -83,6 +81,13 @@
 #define AVA9_DEFAULT_SPDLOW		5
 #define AVA9_DEFAULT_SPDHIGH		7
 #define AVA9_DEFAULT_TBASE		0
+
+/* PID CONTROLLER*/
+#define AVA9_DEFAULT_PID_P		2
+#define AVA9_DEFAULT_PID_I		5
+#define AVA9_DEFAULT_PID_D		0
+#define AVA9_DEFAULT_PID_TEMP_MIN	50
+#define AVA9_DEFAULT_PID_TEMP_MAX	100
 
 #define AVA9_DEFAULT_LV2_TH_MS		0
 #define AVA9_DEFAULT_LV3_TH_MS		0
@@ -263,9 +268,15 @@ struct avalon9_info {
 
 	uint8_t cutoff[AVA9_DEFAULT_MODULARS];
 	int temp_target[AVA9_DEFAULT_MODULARS];
-	int temp_last_max[AVA9_DEFAULT_MODULARS];
 	int temp_overheat[AVA9_DEFAULT_MODULARS];
-	time_t last_temp_time[AVA9_DEFAULT_MODULARS];
+
+	/* pid controler*/
+	int pid_p[AVA9_DEFAULT_MODULARS];
+	int pid_i[AVA9_DEFAULT_MODULARS];
+	int pid_d[AVA9_DEFAULT_MODULARS];
+	double pid_u[AVA9_DEFAULT_MODULARS];
+	int pid_e[AVA9_DEFAULT_MODULARS][3];
+	int pid_0[AVA9_DEFAULT_MODULARS];
 
 	int set_voltage_level[AVA9_DEFAULT_MODULARS][AVA9_DEFAULT_MINER_CNT];
 	uint32_t set_frequency[AVA9_DEFAULT_MODULARS][AVA9_DEFAULT_MINER_CNT][AVA9_DEFAULT_PLL_CNT];
@@ -364,5 +375,8 @@ extern uint32_t opt_avalon9_lv4_th_add;
 extern uint32_t opt_avalon9_lv5_th_add;
 extern uint32_t opt_avalon9_lv6_th_add;
 extern uint32_t opt_avalon9_lv7_th_add;
+extern uint32_t opt_avalon9_pid_p;
+extern uint32_t opt_avalon9_pid_i;
+extern uint32_t opt_avalon9_pid_d;
 #endif /* USE_AVALON9 */
 #endif /* _AVALON9_H_ */
