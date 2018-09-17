@@ -1757,6 +1757,15 @@ static struct opt_table opt_config_table[] = {
 	OPT_WITH_ARG("--avalon9-tbase",
 		     set_int_0_to_255, opt_show_intval, &opt_avalon9_tbase,
 		     "Set Avalon9 tbase and use (0-8) bits, range 0-255."),
+	OPT_WITH_ARG("--avalon9-pid-p",
+		     set_int_0_to_9999, opt_show_intval, &opt_avalon9_pid_p,
+		     "Set Avalon9 pid-p, range 0-9999."),
+	OPT_WITH_ARG("--avalon9-pid-i",
+		     set_int_0_to_9999, opt_show_intval, &opt_avalon9_pid_i,
+		     "Set Avalon9 pid-i, range 0-9999."),
+	OPT_WITH_ARG("--avalon9-pid-d",
+		     set_int_0_to_9999, opt_show_intval, &opt_avalon9_pid_d,
+		     "Set Avalon9 pid-d, range 0-9999."),
 #endif
 #ifdef USE_AVALON_MINER
 	OPT_WITH_CBARG("--avalonm-voltage",
