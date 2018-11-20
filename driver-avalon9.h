@@ -157,6 +157,7 @@
 #define AVA9_P_SET_FAC			0x28
 #define AVA9_P_SET_OC			0x29
 #define AVA9_P_SET_FAC_FREQ		0x2a
+#define AVA9_P_SET_FAC_VOLT		0x2b
 
 /* Have to send with I2C address */
 #define AVA9_P_POLLING			0x30
@@ -324,6 +325,7 @@ struct avalon9_info {
 
 	int8_t factory_info[AVA9_DEFAULT_MODULARS][AVA9_DEFAULT_FACTORY_INFO_CNT];
 	int16_t factory_freq[AVA9_DEFAULT_MODULARS][AVA9_DEFAULT_MINER_CNT][AVA9_DEFAULT_PLL_CNT];
+	int8_t factory_volt[AVA9_DEFAULT_MODULARS][AVA9_DEFAULT_MINER_CNT];
 	int8_t overclocking_info[AVA9_DEFAULT_OVERCLOCKING_CNT];
 
 	uint64_t local_works[AVA9_DEFAULT_MODULARS];
