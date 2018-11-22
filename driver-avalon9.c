@@ -2819,6 +2819,9 @@ char *set_avalon9_fac_freq_info(struct cgpu_info *avalon9, char *arg)
 	for (i = 0; i < AVA9_DEFAULT_PLL_CNT; i++) {
 		if (freq[i] < AVA9_DEFAULT_FACTORY_FREQ_MIN || freq[i] > AVA9_DEFAULT_FACTORY_FREQ_MAX)
 			return "Invalid value passed to set_avalon9_fac_freq_info";
+
+		/* validity correcting */
+		freq[i] = (freq[i] / AVA9_ADJUST_FREQ_STEP) * AVA9_ADJUST_FREQ_STEP;
 	}
 
 	if (addr >= AVA9_DEFAULT_MODULARS) {
