@@ -2863,15 +2863,15 @@ char *set_avalon9_fac_freq_info(struct cgpu_info *avalon9, char *arg)
 
 		if (miner_id) {
 			for (k = 0; k < AVA9_DEFAULT_PLL_CNT; k++)
-				info->factory_freq[i][miner_id - 1][k] = freq[k];
+				info->factory_freq[addr][miner_id - 1][k] = freq[k];
 
-			avalon9_set_fac_freq_info(avalon9, i, miner_id - 1, info->factory_freq[addr][miner_id - 1]);
+			avalon9_set_fac_freq_info(avalon9, addr, miner_id - 1, info->factory_freq[addr][miner_id - 1]);
 		} else {
-			for (j = 0; j < info->miner_count[i]; j++) {
+			for (j = 0; j < info->miner_count[addr]; j++) {
 				for (k = 0; k < AVA9_DEFAULT_PLL_CNT; k++)
-					info->factory_freq[i][j][k] = freq[k];
+					info->factory_freq[addr][j][k] = freq[k];
 
-				avalon9_set_fac_freq_info(avalon9, i, j, info->factory_freq[addr][j]);
+				avalon9_set_fac_freq_info(avalon9, addr, j, info->factory_freq[addr][j]);
 			}
 		}
 	}
