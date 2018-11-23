@@ -733,6 +733,7 @@ static int decode_pkg(struct cgpu_info *avalon9, struct avalon9_ret *ar, int mod
 	case AVA9_P_STATUS_FAC:
 		applog(LOG_DEBUG, "%s-%d-%d: AVA9_P_STATUS_FAC", avalon9->drv->name, avalon9->device_id, modular_id);
 		info->factory_info[modular_id][0] = ar->data[0];
+		memcpy(&info->factory_info[modular_id][AVA9_DEFAULT_FACTORY_INFO_CNT], ar->data + 1, info->miner_count[modular_id]);
 		break;
 	case AVA9_P_STATUS_OC:
 		applog(LOG_DEBUG, "%s-%d-%d: AVA9_P_STATUS_OC", avalon9->drv->name, avalon9->device_id, modular_id);
@@ -2456,8 +2457,13 @@ static struct api_data *avalon9_api_stats(struct cgpu_info *avalon9)
 		strcat(statbuf, buf);
 
 		if (opt_debug) {
-			sprintf(buf, " FAC0[%d]", info->factory_info[i][0]);
+			sprintf(buf, " FAC0[%d ", info->factory_info[i][0]);
 			strcat(statbuf, buf);
+			for (j = 0; j < info->miner_count[i]; j++) {
+				sprintf(buf, "%d ", info->factory_info[i][AVA9_DEFAULT_FACTORY_INFO_CNT + j]);
+				strcat(statbuf, buf);
+			}
+			statbuf[strlen(statbuf) - 1] = ']';
 
 			sprintf(buf, " OC[%d]", info->overclocking_info[0]);
 			strcat(statbuf, buf);
