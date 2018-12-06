@@ -733,6 +733,7 @@ static int decode_pkg(struct cgpu_info *avalon9, struct avalon9_ret *ar, int mod
 	case AVA9_P_STATUS_FAC:
 		applog(LOG_DEBUG, "%s-%d-%d: AVA9_P_STATUS_FAC", avalon9->drv->name, avalon9->device_id, modular_id);
 		info->factory_info[modular_id][0] = ar->data[0];
+		memcpy(&info->factory_info[modular_id][AVA9_DEFAULT_FACTORY_INFO_CNT], ar->data + 1, info->miner_count[modular_id]);
 		break;
 	case AVA9_P_STATUS_OC:
 		applog(LOG_DEBUG, "%s-%d-%d: AVA9_P_STATUS_OC", avalon9->drv->name, avalon9->device_id, modular_id);
@@ -1829,6 +1830,27 @@ static void avalon9_set_fac_freq_info(struct cgpu_info *avalon9, int addr, int m
 		avalon9_iic_xfer_pkg(avalon9, addr, &send_pkg, NULL);
 }
 
+static void avalon9_set_fac_volt_info(struct cgpu_info *avalon9, int addr, int miner_id, int8_t volt)
+{
+	struct avalon9_info *info = avalon9->device_data;
+	struct avalon9_pkg send_pkg;
+	int16_t tmp;
+	uint8_t i;
+
+	memset(send_pkg.data, 0, AVA9_P_DATA_LEN);
+	send_pkg.data[0] = volt;
+
+	applog(LOG_DEBUG, "%s-%d-%d: miner[%d], avalon9 set factory volt[%d]",
+			avalon9->drv->name, avalon9->device_id, addr, miner_id, volt);
+
+	/* Package the data */
+	avalon9_init_pkg(&send_pkg, AVA9_P_SET_FAC_VOLT, miner_id + 1, info->miner_count[addr]);
+	if (addr == AVA9_MODULE_BROADCAST)
+		avalon9_send_bc_pkgs(avalon9, &send_pkg);
+	else
+		avalon9_iic_xfer_pkg(avalon9, addr, &send_pkg, NULL);
+}
+
 static void avalon9_set_ss_param(struct cgpu_info *avalon9, int addr)
 {
 	struct avalon9_pkg send_pkg;
@@ -2435,8 +2457,13 @@ static struct api_data *avalon9_api_stats(struct cgpu_info *avalon9)
 		strcat(statbuf, buf);
 
 		if (opt_debug) {
-			sprintf(buf, " FAC0[%d]", info->factory_info[i][0]);
+			sprintf(buf, " FAC0[%d ", info->factory_info[i][0]);
 			strcat(statbuf, buf);
+			for (j = 0; j < info->miner_count[i]; j++) {
+				sprintf(buf, "%d ", info->factory_info[i][AVA9_DEFAULT_FACTORY_INFO_CNT + j]);
+				strcat(statbuf, buf);
+			}
+			statbuf[strlen(statbuf) - 1] = ']';
 
 			sprintf(buf, " OC[%d]", info->overclocking_info[0]);
 			strcat(statbuf, buf);
@@ -2798,6 +2825,9 @@ char *set_avalon9_fac_freq_info(struct cgpu_info *avalon9, char *arg)
 	for (i = 0; i < AVA9_DEFAULT_PLL_CNT; i++) {
 		if (freq[i] < AVA9_DEFAULT_FACTORY_FREQ_MIN || freq[i] > AVA9_DEFAULT_FACTORY_FREQ_MAX)
 			return "Invalid value passed to set_avalon9_fac_freq_info";
+
+		/* validity correcting */
+		freq[i] = (freq[i] / AVA9_ADJUST_FREQ_STEP) * AVA9_ADJUST_FREQ_STEP;
 	}
 
 	if (addr >= AVA9_DEFAULT_MODULARS) {
@@ -2842,15 +2872,15 @@ char *set_avalon9_fac_freq_info(struct cgpu_info *avalon9, char *arg)
 
 		if (miner_id) {
 			for (k = 0; k < AVA9_DEFAULT_PLL_CNT; k++)
-				info->factory_freq[i][miner_id - 1][k] = freq[k];
+				info->factory_freq[addr][miner_id - 1][k] = freq[k];
 
-			avalon9_set_fac_freq_info(avalon9, i, miner_id - 1, info->factory_freq[addr][miner_id - 1]);
+			avalon9_set_fac_freq_info(avalon9, addr, miner_id - 1, info->factory_freq[addr][miner_id - 1]);
 		} else {
-			for (j = 0; j < info->miner_count[i]; j++) {
+			for (j = 0; j < info->miner_count[addr]; j++) {
 				for (k = 0; k < AVA9_DEFAULT_PLL_CNT; k++)
-					info->factory_freq[i][j][k] = freq[k];
+					info->factory_freq[addr][j][k] = freq[k];
 
-				avalon9_set_fac_freq_info(avalon9, i, j, info->factory_freq[addr][j]);
+				avalon9_set_fac_freq_info(avalon9, addr, j, info->factory_freq[addr][j]);
 			}
 		}
 	}
@@ -2860,6 +2890,79 @@ char *set_avalon9_fac_freq_info(struct cgpu_info *avalon9, char *arg)
 
 	return NULL;
 }
+
+char *set_avalon9_fac_volt_info(struct cgpu_info *avalon9, char *arg)
+{
+	struct avalon9_info *info = avalon9->device_data;
+	int volt = 0;
+
+	unsigned int addr = 0, i, j, k;
+	uint32_t miner_id = 0;
+
+	if (!(*arg))
+		return NULL;
+
+	sscanf(arg, "%d-%d-%d", &volt, &addr, &miner_id);
+	if (volt < AVA9_DEFAULT_FACTORY_INFO_0_MIN || volt > AVA9_DEFAULT_FACTORY_INFO_0_MAX) {
+		applog(LOG_ERR, "the voltage value excceed, valid range: %d-%d", AVA9_DEFAULT_FACTORY_INFO_0_MIN, AVA9_DEFAULT_FACTORY_INFO_0_MAX);
+		return "Invalid value passed to set_avalon9_fac_volt_info";
+	}
+
+	if (addr >= AVA9_DEFAULT_MODULARS) {
+		applog(LOG_ERR, "invalid modular index: %d, valid range 0-%d", addr, (AVA9_DEFAULT_MODULARS - 1));
+		return "Invalid modular index to set_avalon9_fac_volt_info";
+	}
+
+	if (!addr) {
+		for (i = 1; i < AVA9_DEFAULT_MODULARS; i++) {
+			if (!info->enable[i])
+				continue;
+
+			if (miner_id > info->miner_count[i]) {
+				applog(LOG_ERR, "invalid miner index: %d, valid range 0-%d", miner_id, info->miner_count[i]);
+				return "Invalid miner index to set_avalon9_fac_volt_info";
+			}
+
+			if (miner_id) {
+				info->factory_volt[i][miner_id - 1] = volt;
+				avalon9_set_fac_volt_info(avalon9, i,   miner_id - 1, info->factory_volt[i][miner_id - 1]);
+			} else {
+				for (j = 0; j < info->miner_count[i]; j++) {
+					info->factory_volt[i][j] = volt;
+
+					avalon9_set_fac_volt_info(avalon9, i, j, info->factory_volt[i][j]);
+				}
+			}
+		}
+	} else {
+		if (!info->enable[addr]) {
+			applog(LOG_ERR, "Disabled modular:%d", addr);
+			return "Disabled modular to set_avalon9_fac_volt_info";
+		}
+
+		if (miner_id > info->miner_count[addr]) {
+			applog(LOG_ERR, "invalid miner index: %d, valid range 0-%d", miner_id, info->miner_count[addr]);
+			return "Invalid miner index to set_avalon9_fac_volt_info";
+		}
+		
+		if (miner_id) {
+			info->factory_volt[addr][miner_id - 1] = volt;
+			avalon9_set_fac_volt_info(avalon9, addr, miner_id - 1, info->factory_volt[addr][miner_id - 1]);
+		} else {
+			for (j = 0; j < info->miner_count[addr]; j++) {
+				info->factory_volt[addr][j] = volt;
+				avalon9_set_fac_volt_info(avalon9, addr, j, info->factory_volt[addr][j]);
+			}
+		}
+	}
+
+	applog(LOG_NOTICE, "%s-%d, module:%d, miner:%d, update factory voltage to %d",
+		avalon9->drv->name, avalon9->device_id, addr, miner_id, volt);
+
+	return NULL;
+}
+
+
 
 static char *avalon9_set_device(struct cgpu_info *avalon9, char *option, char *setting, char *replybuf)
 {
@@ -3001,12 +3104,20 @@ static char *avalon9_set_device(struct cgpu_info *avalon9, char *option, char *s
 	}
 
 	if (strcasecmp(option, "factory-freq") == 0) {
-			if (!setting || !*setting) {
-				sprintf(replybuf, "missing factory-freq info");
-				return replybuf;
-			}
-			return set_avalon9_fac_freq_info(avalon9, setting);
+		if (!setting || !*setting) {
+			sprintf(replybuf, "missing factory-freq info");
+			return replybuf;
 		}
+		return set_avalon9_fac_freq_info(avalon9, setting);
+	}
+
+	if (strcasecmp(option, "factory-volt") == 0) {
+		if (!setting || !*setting) {
+			sprintf(replybuf, "missing factory-volt info");
+			return replybuf;
+		}
+		return set_avalon9_fac_volt_info(avalon9, setting);
+	}
 
 	sprintf(replybuf, "Unknown option: %s", option);
 	return replybuf;
