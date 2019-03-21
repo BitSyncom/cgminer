@@ -279,6 +279,7 @@ static char *opt_set_avalon8_voltage_level;
 static char *opt_set_avalon8_voltage_level_offset;
 static char *opt_set_avalon8_freq;
 static char *opt_set_avalon8_asic_otp;
+static char *opt_set_avalon8_adj;
 #endif
 #ifdef USE_AVALON_MINER
 static char *opt_set_avalonm_voltage;
@@ -1597,6 +1598,12 @@ static struct opt_table opt_config_table[] = {
 	OPT_WITH_ARG("--avalon8-pid-d",
 		     set_int_0_to_9999, opt_show_intval, &opt_avalon8_pid_d,
 		     "Set Avalon8 pid-d, range 0-9999."),
+	OPT_WITH_CBARG("--avalon8-adj",
+		     set_avalon8_adj, NULL, &opt_set_avalon8_adj,
+		     "Set Avalon8 adjust control params"),
+	OPT_WITH_ARG("--avalon8-power-mode",
+		     set_int_0_to_1, opt_show_intval, &opt_avalon8_power_mode_sel,
+		     "Set Avalon8 power mode, range 0-1. 0 means normal mode, 1 means low mode."),
 #endif
 #ifdef USE_AVALON_MINER
 	OPT_WITH_CBARG("--avalonm-voltage",

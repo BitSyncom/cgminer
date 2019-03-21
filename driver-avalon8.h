@@ -17,6 +17,32 @@
 
 #ifdef USE_AVALON8
 
+/* low power related params */
+#define AVA8_DEFAULT_TEMP_TARGET_LP	64
+#define AVA8_DEFAULT_TH_PASS_LP	300
+#define AVA8_DEFAULT_TH_FAIL_LP	7000
+#define AVA8_DEFAULT_TH_MS_LP		20
+#define AVA8_DEFAULT_TH_TIMEOUT_LP	55000
+#define AVA8_DEFAULT_SPDLOW_LP		2
+#define AVA8_DEFAULT_PID_I_LP		2
+#define AVA8_DEFAULT_PID_TEMP_MIN_LP	20
+#define AVA8_INVALID_PID_I		-1
+#define AVA8_INVALID_TEMP_TARGET	-1
+#define AVA8_INVALID_ADJ_PARAM		-1
+#define AVA851_DEFAULT_TEMP_TARGET_LP	85
+#define AVA851_DEFAULT_TH_PASS_LP	300
+#define AVA851_DEFAULT_TH_TIMEOUT_LP	55000
+#define AVA851_DEFAULT_NONCE_MASK_LP	24
+#define AVA831_DEFAULT_TEMP_TARGET_LP	85
+#define AVA831_DEFAULT_TH_PASS_LP	300
+#define AVA831_DEFAULT_TH_TIMEOUT_LP	55000
+#define AVA831_DEFAULT_NONCE_MASK_LP	24
+#define AVA821_DEFAULT_TEMP_TARGET_LP	75
+
+#define AVA8_DEF_ADJ_PARAM_NUM		4
+
+
+/* normal power related and common params*/
 #define AVA8_FREQUENCY_MAX	1404
 
 #define AVA8_DEFAULT_FAN_MIN		5 /* % */
@@ -47,6 +73,7 @@
 #define AVA8_DEFAULT_OVERCLOCKING_ON  1
 
 #define AVA8_DEFAULT_FREQUENCY_0M	0
+#define AVA8_DEFAULT_FREQUENCY_500M	500
 #define AVA8_DEFAULT_FREQUENCY_650M	650
 #define AVA8_DEFAULT_FREQUENCY_725M	725
 #define AVA8_DEFAULT_FREQUENCY_775M	775
@@ -85,9 +112,11 @@
 #define AVA8_DEFAULT_SPDHIGH           3
 #define AVA8_INVALID_TH_PASS		-1
 #define AVA8_INVALID_TH_FAIL		-1
-#define AVA8_INVALID_TH_TIMEOUT		-1
-#define AVA8_INVALID_NONCE_MASK		-1
+#define AVA8_INVALID_TH_MS		-1
+#define AVA8_INVALID_TH_TIMEOUT	-1
+#define AVA8_INVALID_NONCE_MASK	-1
 #define AVA8_INVALID_SPDLOW		-1
+#define AVA8_INVALID_ADJ_PARAM		-1
 
 #define AVA851_DEFAULT_TH_PASS		200
 #define AVA851_DEFAULT_TH_FAIL		7000
@@ -160,6 +189,11 @@
 /* 0x27 reserved */
 #define AVA8_P_SET_FAC			0x28
 #define AVA8_P_SET_OC			0x29
+#define AVA8_P_SET_ASIC_OTP		0x2a
+#define AVA8_P_SET_ADJ_FAC_UP		0x2b
+#define AVA8_P_SET_ADJ_FAC_DOWN	0x2c
+#define AVA8_P_SET_ADJ_CONTROL		0x2d
+#define AVA8_P_SET_POWER_MODE		0x2e
 
 /* Have to send with I2C address */
 #define AVA8_P_POLLING	0x30
@@ -182,7 +216,6 @@
 #define AVA8_P_STATUS_FAC		0x4d
 #define AVA8_P_STATUS_OC		0x4e
 #define AVA8_P_STATUS_OTP		0x4f
-#define AVA8_P_SET_ASIC_OTP		0x50
 
 #define AVA8_MODULE_BROADCAST	0
 /* End of avalon8 protocol package type */
@@ -215,6 +248,9 @@
 #define AVA8_OTP_INDEX_CYCLE_HIT	29
 #define AVA8_OTP_INFO_LOTIDCRC_OFFSET	0
 #define AVA8_OTP_INFO_LOTID_OFFSET  	6
+
+#define AVA8_POWER_MODE_NORMAL		0
+#define AVA8_POWER_MODE_LOW		1
 
 struct avalon8_pkg {
 	uint8_t head[2];
@@ -315,7 +351,7 @@ struct avalon8_info {
 
 	uint32_t get_asic[AVA8_DEFAULT_MODULARS][AVA8_DEFAULT_MINER_CNT][AVA8_DEFAULT_ASIC_MAX][6];
 
-	int8_t factory_info[AVA8_DEFAULT_FACTORY_INFO_CNT];
+	int8_t factory_info[AVA8_DEFAULT_MODULARS][AVA8_DEFAULT_FACTORY_INFO_CNT + AVA8_DEFAULT_MINER_CNT];
 	int8_t overclocking_info[AVA8_DEFAULT_OVERCLOCKING_CNT];
 
 	uint64_t local_works[AVA8_DEFAULT_MODULARS];
@@ -336,6 +372,8 @@ struct avalon8_info {
 	uint16_t vout_adc_ratio[AVA8_DEFAULT_MODULARS];
 
 	bool conn_overloaded;
+
+	uint32_t power_mode[AVA8_DEFAULT_MODULARS];
 };
 
 struct avalon8_iic_info {
@@ -369,6 +407,7 @@ extern char *set_avalon8_freq(char *arg);
 extern char *set_avalon8_voltage_level(char *arg);
 extern char *set_avalon8_voltage_level_offset(char *arg);
 extern char *set_avalon8_asic_otp(char *arg);
+extern char *set_avalon8_adj(char *arg);
 extern int opt_avalon8_temp_target;
 extern int opt_avalon8_polling_delay;
 extern int opt_avalon8_aucspeed;
@@ -393,6 +432,7 @@ extern uint32_t opt_avalon8_spdhigh;
 extern uint32_t opt_avalon8_pid_p;
 extern uint32_t opt_avalon8_pid_i;
 extern uint32_t opt_avalon8_pid_d;
+extern uint32_t opt_avalon8_power_mode_sel;
 
 #endif /* USE_AVALON8 */
 #endif /* _AVALON8_H_ */
