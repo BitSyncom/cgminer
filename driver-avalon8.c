@@ -2794,7 +2794,7 @@ static struct api_data *avalon8_api_stats(struct cgpu_info *avalon8)
 		sprintf(buf, " HW[%"PRIu64"]", info->hw_works[i]);
 		strcat(statbuf, buf);
 
-		if (!strncmp((char *)&(info->mm_version[i]), "851", 3))	{
+		if (!strncmp((char *)&(info->mm_version[i]), "851", 3)) {
 			double a, b, dh;
 
 			a = 0;
@@ -3033,7 +3033,7 @@ static struct api_data *avalon8_api_stats(struct cgpu_info *avalon8)
 					sprintf(buf, " CINFO%02d[", k);
 					strcat(statbuf, buf);
 
-					for (m = 0; m < 23; m++) {
+					for (m = 0; m < 26; m++) {
 						sprintf(buf, "%02x", info->otp_info[i][k][m]);
 						strcat(statbuf, buf);
 					}
@@ -3098,6 +3098,19 @@ static struct api_data *avalon8_api_stats(struct cgpu_info *avalon8)
 							statbuf[strlen(statbuf)] = '\0';
 						}
 					}
+				}
+
+				for (k = 0; k < info->miner_count[i]; k++) {
+					sprintf(buf, " CINFO%02d[", k);
+					strcat(statbuf, buf);
+
+					for (m = 0; m < 26; m++) {
+						sprintf(buf, "%02x", info->otp_info[i][k][m]);
+						strcat(statbuf, buf);
+					}
+
+					sprintf(buf, "]");
+					strcat(statbuf, buf);
 				}
 			}
 		}
