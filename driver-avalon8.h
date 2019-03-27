@@ -194,6 +194,7 @@
 #define AVA8_P_SET_ADJ_FAC_DOWN	0x2c
 #define AVA8_P_SET_ADJ_CONTROL		0x2d
 #define AVA8_P_SET_POWER_MODE		0x2e
+#define AVA8_P_SET_MINER_EN		0x2f /*for enable/disable miner*/
 
 /* Have to send with I2C address */
 #define AVA8_P_POLLING	0x30
@@ -216,6 +217,8 @@
 #define AVA8_P_STATUS_FAC		0x4d
 #define AVA8_P_STATUS_OC		0x4e
 #define AVA8_P_STATUS_OTP		0x4f
+#define AVA8_P_STATUS_MINER_EN		0x50
+
 
 #define AVA8_MODULE_BROADCAST	0
 /* End of avalon8 protocol package type */
@@ -251,6 +254,9 @@
 
 #define AVA8_POWER_MODE_NORMAL		0
 #define AVA8_POWER_MODE_LOW		1
+
+#define AVA8_MINER_ENABLE		1
+#define AVA8_MINER_DISABLE		0
 
 struct avalon8_pkg {
 	uint8_t head[2];
@@ -374,6 +380,7 @@ struct avalon8_info {
 	bool conn_overloaded;
 
 	uint32_t power_mode[AVA8_DEFAULT_MODULARS];
+	int set_miner_enable[AVA8_DEFAULT_MODULARS][AVA8_DEFAULT_MINER_CNT];
 };
 
 struct avalon8_iic_info {
