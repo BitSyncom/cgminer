@@ -2896,7 +2896,7 @@ static struct api_data *avalon8_api_stats(struct cgpu_info *avalon8)
 		sprintf(buf, " Led[%d]", info->led_indicator[i]);
 		strcat(statbuf, buf);
 
-		sprintf(buf, " PowerMode[%d]", info->power_mode[i]);
+		sprintf(buf, " PM[%d]", info->power_mode[i]);
 		strcat(statbuf, buf);
 
 		strcat(statbuf, " ME[");
