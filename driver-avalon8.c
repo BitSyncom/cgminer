@@ -80,6 +80,12 @@ int opt_avalon8_adj[AVA8_DEF_ADJ_PARAM_NUM] =
 	AVA8_INVALID_ADJ_PARAM,
 	AVA8_INVALID_ADJ_PARAM,
 	AVA8_INVALID_ADJ_PARAM,
+	AVA8_INVALID_ADJ_PARAM,
+	AVA8_INVALID_ADJ_PARAM,
+	AVA8_INVALID_ADJ_PARAM,
+	AVA8_INVALID_ADJ_PARAM,
+	AVA8_INVALID_ADJ_PARAM,
+	AVA8_INVALID_ADJ_PARAM,
 	AVA8_INVALID_ADJ_PARAM
 };
 
@@ -537,33 +543,29 @@ char *set_avalon8_adj(char *arg)
 	memset(val, 0, sizeof(val));
 
 	for (i = 0; i < AVA8_DEF_ADJ_PARAM_NUM; i++) {
-		colon = strchr(data, '-');
+		colon = strchr(data, ':');
 		if (colon)
 			*(colon++) = '\0';
 		else {
 			/* last value */
 			if (*data) {
 				val[i] = atoi(data);
-				if (val[i] < 0)
-					return "Invalid value passed to avalon8-adj";
 			}
 			break;
 		}
 
 		if (*data) {
 			val[i] = atoi(data);
-			if (val[i] < 0)
-				return "Invalid value passed to avalon8-adj";
 		}
 		data = colon;
 	}
 
-	if (val[1] >= AVA8_DEFAULT_MINER_CNT)
-		return "Invalid value(index=1) passed to avalon8-adj";
-	if ((val[2] != 0) && (val[2] != 1))
-		return "Invalid value(index=2) passed to avalon8-adj";
-	if ((val[3] != 0) && (val[3] != 1))
-		return "Invalid value(index=3) passed to avalon8-adj";
+	if (val[7] >= AVA8_DEFAULT_MINER_CNT)
+		return "Invalid value(index=7) passed to avalon8-adj";
+	if ((val[8] != 0) && (val[8] != 1))
+		return "Invalid value(index=8) passed to avalon8-adj";
+	if ((val[9] != 0) && (val[9] != 1))
+		return "Invalid value(index=9) passed to avalon8-adj";
 
 	for (i = 0; i < AVA8_DEF_ADJ_PARAM_NUM; i++)
 		opt_avalon8_adj[i] = val[i];
@@ -2336,24 +2338,27 @@ static void avalon8_set_adj(struct cgpu_info *avalon8, int addr, int *adj)
 	struct avalon8_pkg send_pkg;
 	int tmp;
 
+	avalon8_set_adj_fac_up(avalon8, 0, adj[1], adj[2], adj[0]);
+	avalon8_set_adj_fac_down(avalon8, 0, adj[4], adj[5], adj[3]);
+
 	memset(send_pkg.data, 0, AVA8_P_DATA_LEN);
 
-	tmp = be32toh(adj[0]);
+	tmp = be32toh(adj[6]);
 	memcpy(send_pkg.data, &tmp, 4);
 	applog(LOG_DEBUG, "%s-%d-%d: avalon8 set adj timer interval %d",
-			avalon8->drv->name, avalon8->device_id, addr, tmp);
+			avalon8->drv->name, avalon8->device_id, addr, adj[6]);
 
-	send_pkg.data[4] = (int8_t)adj[1];
+	send_pkg.data[4] = (int8_t)adj[7];
 	applog(LOG_DEBUG, "%s-%d-%d: avalon8 set adj param index %d",
-			avalon8->drv->name, avalon8->device_id, addr, adj[1]);
+			avalon8->drv->name, avalon8->device_id, addr, adj[7]);
 
-	send_pkg.data[5] = (int8_t)adj[2];
+	send_pkg.data[5] = (int8_t)adj[8];
 	applog(LOG_DEBUG, "%s-%d-%d: avalon8 set adj param index %d",
-			avalon8->drv->name, avalon8->device_id, addr, adj[2]);
+			avalon8->drv->name, avalon8->device_id, addr, adj[8]);
 
-	send_pkg.data[6] = (int8_t)adj[3];
+	send_pkg.data[6] = (int8_t)adj[9];
 	applog(LOG_DEBUG, "%s-%d-%d: avalon8 set adj param index %d",
-			avalon8->drv->name, avalon8->device_id, addr, adj[3]);
+			avalon8->drv->name, avalon8->device_id, addr, adj[9]);
 
 	/* Package the data */
 	avalon8_init_pkg(&send_pkg, AVA8_P_SET_ADJ_CONTROL, 1, 1);
@@ -2592,6 +2597,15 @@ static int64_t avalon8_scanhash(struct thr_info *thr)
 				}
 				avalon8_init_setting(avalon8, i);
 
+				if(opt_avalon8_power_mode_sel == AVA8_POWER_MODE_LOW) {
+					for (k = 0; k < AVA8_DEF_ADJ_PARAM_NUM; k++) {
+						if (opt_avalon8_adj[k] != AVA8_INVALID_ADJ_PARAM)
+							adj_flag = true;
+					}
+					if (adj_flag)
+						avalon8_set_adj(avalon8, i, opt_avalon8_adj);
+				}
+
 				info->freq_mode[i] = AVA8_FREQ_PLLADJ_MODE;
 				break;
 			case AVA8_FREQ_PLLADJ_MODE:
@@ -2674,15 +2688,6 @@ static int64_t avalon8_scanhash(struct thr_info *thr)
 					}
 				}
 				avalon8_set_ss_param(avalon8, i);
-			}
-
-			if(opt_avalon8_power_mode_sel == AVA8_POWER_MODE_LOW) {
-				for (k = 0; k < AVA8_DEF_ADJ_PARAM_NUM; k++) {
-					if (opt_avalon8_adj[k] != AVA8_INVALID_ADJ_PARAM)
-						adj_flag = true;
-				}
-				if (adj_flag)
-					avalon8_set_adj(avalon8, i, opt_avalon8_adj);
 			}
 
 			avalon8_set_finish(avalon8, i);
