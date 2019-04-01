@@ -72,11 +72,18 @@
 #define AVA8_DEFAULT_OVERCLOCKING_ON  1
 
 #define AVA8_DEFAULT_FREQUENCY_0M	0
+#define AVA8_DEFAULT_FREQUENCY_487M	487
 #define AVA8_DEFAULT_FREQUENCY_500M	500
+#define AVA8_DEFAULT_FREQUENCY_537M	537
 #define AVA8_DEFAULT_FREQUENCY_650M	650
+#define AVA8_DEFAULT_FREQUENCY_700M	700
 #define AVA8_DEFAULT_FREQUENCY_725M	725
+#define AVA8_DEFAULT_FREQUENCY_750M	750
 #define AVA8_DEFAULT_FREQUENCY_775M	775
+#define AVA8_DEFAULT_FREQUENCY_800M	800
+#define AVA8_DEFAULT_FREQUENCY_825M	825
 #define AVA8_DEFAULT_FREQUENCY_850M	850
+#define AVA8_DEFAULT_FREQUENCY_875M	875
 #define AVA8_DEFAULT_FREQUENCY_MAX	1200
 #define AVA8_DEFAULT_FREQUENCY		(AVA8_DEFAULT_FREQUENCY_MAX)
 #define AVA8_DEFAULT_FREQUENCY_SEL	3
@@ -251,7 +258,8 @@
 #define AVA8_OTP_INFO_LOTID_OFFSET  	6
 
 #define AVA8_POWER_MODE_NORMAL		0
-#define AVA8_POWER_MODE_LOW		1
+#define AVA8_POWER_MODE_BALANCE	1
+#define AVA8_POWER_MODE_LOW		2
 
 #define AVA8_MINER_ENABLE		1
 #define AVA8_MINER_DISABLE		0
@@ -399,6 +407,36 @@ struct avalon8_dev_description {
 	int set_voltage_level;
 	uint16_t set_freq[AVA8_DEFAULT_PLL_CNT];
 	int set_asic_otp;
+};
+
+struct avalon8_adj_param_s {
+	int init_up;
+	int fac_up;
+	int thresh_up;
+	int init_down;
+	int fac_down;
+	int thresh_down;
+	int timer_gap; /*  adj check interval, s*/
+	int pll_index; /* which pll cnt to check */
+	int all_on; /* enable(1)/disable(0) adj check */
+	int pll_on; /*  enable(1)/disable(0) pll adjust */
+};
+
+union avalon8_adj_param {
+	int adj_param_a[10];
+	struct avalon8_adj_param_s adj_param_s;
+};
+
+struct avalon8_ss_param {
+	int temp;
+	int volt_level;
+	uint16_t set_freq[AVA8_DEFAULT_PLL_CNT];
+	int spd_low;
+	int th_pass;
+	int th_fail;
+	int th_timeout;
+	int th_ms;
+	union avalon8_adj_param adj_param;
 };
 
 #define AVA8_WRITE_SIZE (sizeof(struct avalon8_pkg))
