@@ -3037,7 +3037,7 @@ static struct api_data *avalon8_api_stats(struct cgpu_info *avalon8)
 		sprintf(buf, " Fan[%d]", info->fan_cpm[i]);
 		strcat(statbuf, buf);
 
-		sprintf(buf, " FanR[%d%%]", info->fan_pct_mm[i] == 0 ? info->fan_pct[i] : info->fan_pct_mm[i]);
+		sprintf(buf, " FanR[%d%%]", info->fan_pct_mm[i] ? info->fan_pct_mm[i]  : info->fan_pct[i]);
 		strcat(statbuf, buf);
 
 		sprintf(buf, " Vi[");
@@ -3955,8 +3955,8 @@ static void avalon8_statline_before(char *buf, size_t bufsiz, struct cgpu_info *
 		if (!info->enable[i])
 			continue;
 
-		if (fanmin >= (info->fan_pct_mm[i] == 0 ? info->fan_pct[i] : info->fan_pct_mm[i]))
-			fanmin = (info->fan_pct_mm[i] == 0 ? info->fan_pct[i] : info->fan_pct_mm[i]);
+		if (fanmin >= (info->fan_pct_mm[i] ? info->fan_pct_mm[i] : info->fan_pct[i]))
+			fanmin = (info->fan_pct_mm[i] ? info->fan_pct_mm[i] : info->fan_pct[i]);
 
 		if (temp < get_temp_max(info, i))
 			temp = get_temp_max(info, i);
