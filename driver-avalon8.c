@@ -900,7 +900,7 @@ static int decode_pkg(struct cgpu_info *avalon8, struct avalon8_ret *ar, int mod
 
 		memcpy(&tmp, ar->data + 12, 4);
 		if (tmp)
-			info->fan_pct[modular_id] = be32toh(tmp);
+			info->fan_pct_mm[modular_id] = be32toh(tmp);
 
 		memcpy(&tmp, ar->data + 16, 4);
 		info->error_code[modular_id][ar->idx] = be32toh(tmp);
@@ -1854,6 +1854,7 @@ static void detect_modules(struct cgpu_info *avalon8)
 
 		info->temp_target[i] = opt_avalon8_temp_target;
 		info->fan_pct[i] = opt_avalon8_fan_min;
+		info->fan_pct_mm[i] = 0;
 
 		for (j = 0; j < info->miner_count[i]; j++) {
 			if (opt_avalon8_voltage_level == AVA8_INVALID_VOLTAGE_LEVEL) {
@@ -3036,7 +3037,7 @@ static struct api_data *avalon8_api_stats(struct cgpu_info *avalon8)
 		sprintf(buf, " Fan[%d]", info->fan_cpm[i]);
 		strcat(statbuf, buf);
 
-		sprintf(buf, " FanR[%d%%]", info->fan_pct[i]);
+		sprintf(buf, " FanR[%d%%]", info->fan_pct_mm[i] == 0 ? info->fan_pct[i] : info->fan_pct_mm[i]);
 		strcat(statbuf, buf);
 
 		sprintf(buf, " Vi[");
@@ -3954,8 +3955,8 @@ static void avalon8_statline_before(char *buf, size_t bufsiz, struct cgpu_info *
 		if (!info->enable[i])
 			continue;
 
-		if (fanmin >= info->fan_pct[i])
-			fanmin = info->fan_pct[i];
+		if (fanmin >= (info->fan_pct_mm[i] == 0 ? info->fan_pct[i] : info->fan_pct_mm[i]))
+			fanmin = (info->fan_pct_mm[i] == 0 ? info->fan_pct[i] : info->fan_pct_mm[i]);
 
 		if (temp < get_temp_max(info, i))
 			temp = get_temp_max(info, i);

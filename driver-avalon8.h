@@ -333,6 +333,7 @@ struct avalon8_info {
 	uint32_t freq_mode[AVA8_DEFAULT_MODULARS];
 	int led_indicator[AVA8_DEFAULT_MODULARS];
 	int fan_pct[AVA8_DEFAULT_MODULARS];
+	int fan_pct_mm[AVA8_DEFAULT_MODULARS];
 	int fan_cpm[AVA8_DEFAULT_MODULARS];
 
 	int temp[AVA8_DEFAULT_MODULARS][AVA8_DEFAULT_MINER_CNT][AVA8_DEFAULT_ASIC_MAX];
