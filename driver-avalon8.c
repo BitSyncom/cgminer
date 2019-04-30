@@ -68,10 +68,6 @@ uint32_t opt_avalon8_roll_enable = AVA8_DEFAULT_ROLL_ENABLE;
 uint32_t opt_avalon8_spdlow = AVA8_INVALID_SPDLOW;
 uint32_t opt_avalon8_spdhigh = AVA8_DEFAULT_SPDHIGH;
 
-uint32_t opt_avalon8_pid_p = AVA8_DEFAULT_PID_P;
-uint32_t opt_avalon8_pid_i = AVA8_INVALID_PID_I;
-uint32_t opt_avalon8_pid_d = AVA8_DEFAULT_PID_D;
-
 /* power mode select: 0, normal mode; 1, low mode. */
 uint32_t opt_avalon8_power_mode_sel = AVA8_POWER_MODE_NORMAL;
 
@@ -702,71 +698,6 @@ static inline int get_temp_max(struct avalon8_info *info, int addr)
 	return max;
 }
 
-/*
- * Incremental PID controller
- *
- * controller input: u, output: t
- *
- * delta_u = P * [e(k) - e(k-1)] + I * e(k) + D * [e(k) - 2*e(k-1) + e(k-2)];
- * e(k) = t(k) - t[target];
- * u(k) = u(k-1) + delta_u;
- *
- */
-static inline uint32_t adjust_fan(struct avalon8_info *info, int id)
-{
-	int t;
-	double delta_u;
-	double delta_p, delta_i, delta_d;
-	uint32_t pwm;
-	int pid_temp_min;
-
-	t = get_temp_max(info, id);
-
-	/* update target error */
-	info->pid_e[id][2] = info->pid_e[id][1];
-	info->pid_e[id][1] = info->pid_e[id][0];
-	info->pid_e[id][0] = t - info->temp_target[id];
-
-	if ((!strncmp((char *)&(info->mm_version[id]), "851", 3)) ||
-		(!strncmp((char *)&(info->mm_version[id]), "852", 3))) {
-		pid_temp_min = AVA8_DEFAULT_PID_TEMP_MIN_LP;
-	} else if (opt_avalon8_power_mode_sel == AVA8_POWER_MODE_LOW)
-		pid_temp_min = AVA8_DEFAULT_PID_TEMP_MIN_LP;
-	else
-		pid_temp_min = AVA8_DEFAULT_PID_TEMP_MIN;
-
-	if (t > AVA8_DEFAULT_PID_TEMP_MAX) {
-		info->pid_u[id] = opt_avalon8_fan_max;
-	} else if (t < pid_temp_min && info->pid_0[id] == 0) {
-		info->pid_u[id] = opt_avalon8_fan_min;
-	} else if (!info->pid_0[id]) {
-			/* first, init u as t */
-			info->pid_0[id] = 1;
-			info->pid_u[id] = t;
-	} else {
-		delta_p = info->pid_p[id] * (info->pid_e[id][0] - info->pid_e[id][1]);
-		delta_i = info->pid_i[id] * info->pid_e[id][0];
-		delta_d = info->pid_d[id] * (info->pid_e[id][0] - 2 * info->pid_e[id][1] + info->pid_e[id][2]);
-
-		/*Parameter I is int type(1, 2, 3...), but should be used as a smaller value (such as 0.1, 0.01...)*/
-		delta_u = delta_p + delta_i / 100 + delta_d;
-
-		info->pid_u[id] += delta_u;
-	}
-
-	if(info->pid_u[id] > opt_avalon8_fan_max)
-		info->pid_u[id] = opt_avalon8_fan_max;
-
-	if (info->pid_u[id] < opt_avalon8_fan_min)
-		info->pid_u[id] = opt_avalon8_fan_min;
-
-	/* Round from float to int */
-	info->fan_pct[id] = (int)(info->pid_u[id] + 0.5);
-	pwm = get_fan_pwm(info->fan_pct[id]);
-
-	return pwm;
-}
-
 static int decode_pkg(struct cgpu_info *avalon8, struct avalon8_ret *ar, int modular_id)
 {
 	struct avalon8_info *info = avalon8->device_data;
@@ -899,7 +830,7 @@ static int decode_pkg(struct cgpu_info *avalon8, struct avalon8_ret *ar, int mod
 		info->local_works_i[modular_id][ar->idx] += be32toh(tmp);
 
 		memcpy(&tmp, ar->data + 12, 4);
-		info->hw_works_i[modular_id][ar->idx] += be32toh(tmp);
+		info->fan_pct[modular_id] += be32toh(tmp);
 
 		memcpy(&tmp, ar->data + 16, 4);
 		info->error_code[modular_id][ar->idx] = be32toh(tmp);
@@ -1688,7 +1619,6 @@ static bool avalon8_prepare(struct thr_info *thr)
 	info->pool_no = 0;
 
 	memset(&(info->firsthash), 0, sizeof(info->firsthash));
-	cgtime(&(info->last_fan_adj));
 	cgtime(&info->last_stratum);
 	cgtime(&info->last_detect);
 
@@ -1924,14 +1854,6 @@ static void detect_modules(struct cgpu_info *avalon8)
 			else
 				opt_avalon8_pid_i = AVA8_DEFAULT_PID_I;
 		}
-		info->pid_u[i] = opt_avalon8_fan_min;
-		info->pid_p[i] = opt_avalon8_pid_p;
-		info->pid_i[i] = opt_avalon8_pid_i;
-		info->pid_d[i] = opt_avalon8_pid_d;
-		info->pid_e[i][0] = 0;
-		info->pid_e[i][1] = 0;
-		info->pid_e[i][2] = 0;
-		info->pid_0[i] = 0;
 
 		for (j = 0; j < info->miner_count[i]; j++) {
 			memset(info->chip_matching_work[i][j], 0, sizeof(uint64_t) * info->asic_count[i]);
@@ -1975,17 +1897,8 @@ static int polling(struct cgpu_info *avalon8)
 	struct avalon8_pkg send_pkg;
 	struct avalon8_ret ar;
 	int i, tmp, ret, decode_err = 0;
-	struct timeval current_fan;
-	int do_adjust_fan = 0;
 	uint32_t fan_pwm;
 	double device_tdiff;
-
-	cgtime(&current_fan);
-	device_tdiff = tdiff(&current_fan, &(info->last_fan_adj));
-	if (device_tdiff > 2.0 || device_tdiff < 0) {
-		cgtime(&info->last_fan_adj);
-		do_adjust_fan = 1;
-	}
 
 	for (i = 1; i < AVA8_DEFAULT_MODULARS; i++) {
 		if (!info->enable[i])
@@ -1997,14 +1910,6 @@ static int polling(struct cgpu_info *avalon8)
 		/* Red LED */
 		tmp = be32toh(info->led_indicator[i]);
 		memcpy(send_pkg.data, &tmp, 4);
-
-		/* Adjust fan every 2 seconds*/
-		if (do_adjust_fan) {
-			fan_pwm = adjust_fan(info, i);
-			fan_pwm |= 0x80000000;
-			tmp = be32toh(fan_pwm);
-			memcpy(send_pkg.data + 4, &tmp, 4);
-		}
 
 		if (info->reboot[i]) {
 			info->reboot[i] = false;
@@ -2100,6 +2005,16 @@ static void avalon8_init_setting(struct cgpu_info *avalon8, int addr)
 
 	memset(send_pkg.data, 0, AVA8_P_DATA_LEN);
 
+	send_pkg.data[0] = opt_avalon8_fan_min & 0xff;
+	applog(LOG_DEBUG, "%s-%d-%d: avalon8 set fanmin %u",
+			avalon8->drv->name, avalon8->device_id, addr,
+			opt_avalon8_fan_min);
+
+	send_pkg.data[1] = opt_avalon8_fan_max & 0xff;
+	applog(LOG_DEBUG, "%s-%d-%d: avalon8 set fanmax %u",
+			avalon8->drv->name, avalon8->device_id, addr,
+			opt_avalon8_fan_max);
+
 	tmp = be32toh(opt_avalon8_freq_sel);
 	memcpy(send_pkg.data + 4, &tmp, 4);
 
@@ -2146,6 +2061,12 @@ static void avalon8_init_setting(struct cgpu_info *avalon8, int addr)
 	applog(LOG_DEBUG, "%s-%d-%d: avalon8 set spdhigh %u",
 			avalon8->drv->name, avalon8->device_id, addr,
 			opt_avalon8_spdhigh);
+
+			
+	send_pkg.data[31] = opt_avalon8_temp_target & 0xff;
+	applog(LOG_DEBUG, "%s-%d-%d: avalon8 set temptarget %u",
+			avalon8->drv->name, avalon8->device_id, addr,
+			opt_avalon8_temp_target);
 
 	/* Package the data */
 	avalon8_init_pkg(&send_pkg, AVA8_P_SET, 1, 1);
