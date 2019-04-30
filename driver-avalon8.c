@@ -67,6 +67,7 @@ uint32_t opt_avalon8_h2ltime0_spd = AVA8_DEFAULT_H2LTIME0_SPD;
 uint32_t opt_avalon8_roll_enable = AVA8_DEFAULT_ROLL_ENABLE;
 uint32_t opt_avalon8_spdlow = AVA8_INVALID_SPDLOW;
 uint32_t opt_avalon8_spdhigh = AVA8_DEFAULT_SPDHIGH;
+
 uint32_t opt_avalon8_pid_p = AVA8_DEFAULT_PID_P;
 uint32_t opt_avalon8_pid_i = AVA8_INVALID_PID_I;
 uint32_t opt_avalon8_pid_d = AVA8_DEFAULT_PID_D;
@@ -700,6 +701,7 @@ static inline int get_temp_max(struct avalon8_info *info, int addr)
 
 	return max;
 }
+
 /*
  * Incremental PID controller
  *
@@ -1996,7 +1998,7 @@ static int polling(struct cgpu_info *avalon8)
 		/* Red LED */
 		tmp = be32toh(info->led_indicator[i]);
 		memcpy(send_pkg.data, &tmp, 4);
-		
+
 		/* Adjust fan every 2 seconds*/
 		if (do_adjust_fan) {
 			fan_pwm = adjust_fan(info, i);
