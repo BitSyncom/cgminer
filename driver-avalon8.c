@@ -421,14 +421,14 @@ struct avalon8_ss_param avalon851_ss_low = {
 };
 struct avalon8_ss_param avalon850_ss_high = {
 	87,
-	10,
+	15,
 	{
 		AVA8_DEFAULT_FREQUENCY_0M,
 		AVA8_DEFAULT_FREQUENCY_0M,
-		AVA8_DEFAULT_FREQUENCY_825M,
-		AVA8_DEFAULT_FREQUENCY_875M
+		AVA8_DEFAULT_FREQUENCY_750M,
+		AVA8_DEFAULT_FREQUENCY_825M
 	},
-	2, 10, 1000, 300000, 2,
+	2, 10, 1000, 1300000, 4,
 	{0, 6, 1314, 500, 4, 448, 600, 2, 1, 0}
 };
 
@@ -2836,7 +2836,7 @@ static int64_t avalon8_scanhash(struct thr_info *thr)
 					}
 
 					if (opt_avalon8_nonce_mask == AVA8_INVALID_NONCE_MASK) {
-						opt_avalon8_nonce_mask = AVA851_DEFAULT_NONCE_MASK_LP;
+						opt_avalon8_nonce_mask = AVA850_DEFAULT_NONCE_MASK_LP;
 					}
 
 				} else if (!strncmp((char *)&(info->mm_version[i]), "831", 3)) {
