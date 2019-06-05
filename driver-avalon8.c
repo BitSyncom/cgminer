@@ -389,6 +389,50 @@ struct avalon8_ss_param avalon851_ss_low = {
 	2, 10, 1000, 300000, 2,
 	{0, 6, 1314, 500, 4, 448, 600, 2, 1, 0}
 };
+static double cal_dh(struct avalon8_info *info,uint32_t module_id)
+{
+	uint8_t i, j;
+	double dh, spdlog_pass, spdlog_fail;
+	uint32_t tmp_spdlog_pass[AVA8_DEFAULT_MINER_CNT][AVA8_DEFAULT_ASIC_MAX];
+	uint32_t tmp_spdlog_fail[AVA8_DEFAULT_MINER_CNT][AVA8_DEFAULT_ASIC_MAX];
+	double spdlog_pass_fail_expt = 0;
+
+	spdlog_pass = 0;
+	spdlog_fail = 0;
+
+	for (i = 0; i < info->miner_count[module_id]; i++) {
+		for (j = 0; j < info->asic_count[module_id]; j++) {
+			tmp_spdlog_pass[i][j] = info->get_asic[module_id][i][j][0];
+			tmp_spdlog_fail[i][j] = info->get_asic[module_id][i][j][1];
+		}
+	}
+
+	for (i = 0; i < AVA8_DEFAULT_MINER_CNT; i++) {
+		for (j = 0; j < AVA8_DEFAULT_ASIC_MAX; j++) {
+			spdlog_pass += tmp_spdlog_pass[i][j];
+		}
+	}
+
+	spdlog_pass_fail_expt = (spdlog_pass / (AVA8_DEFAULT_MINER_CNT * AVA8_DEFAULT_ASIC_MAX)) + (spdlog_pass /(AVA8_DEFAULT_MINER_CNT * AVA8_DEFAULT_ASIC_MAX * 8));
+
+	for (i = 0; i < AVA8_DEFAULT_MINER_CNT; i++) {
+		for (j = 0; j < AVA8_DEFAULT_ASIC_MAX; j++) {
+			if (tmp_spdlog_fail[i][j] >= (spdlog_pass_fail_expt / 2) && spdlog_pass_fail_expt >= tmp_spdlog_pass[i][j])
+				tmp_spdlog_fail[i][j] = spdlog_pass_fail_expt - tmp_spdlog_pass[i][j];
+			else if (tmp_spdlog_fail[i][j] >= (spdlog_pass_fail_expt / 2) && spdlog_pass_fail_expt < tmp_spdlog_pass[i][j])
+				tmp_spdlog_fail[i][j] = spdlog_pass_fail_expt / 2;
+		}
+	}
+
+	for (i = 0; i < AVA8_DEFAULT_MINER_CNT; i++) {
+		for (j = 0; j < AVA8_DEFAULT_ASIC_MAX; j++) {
+			spdlog_fail += tmp_spdlog_fail[i][j];
+		}
+	}
+
+	dh = spdlog_fail ? (double)((spdlog_fail / (spdlog_pass + spdlog_fail)) * 100) : 0;
+	return dh;
+}
 
 static uint32_t api_get_cpm(uint32_t freq)
 {
@@ -3013,17 +3057,9 @@ static struct api_data *avalon8_api_stats(struct cgpu_info *avalon8)
 
 		if ((!strncmp((char *)&(info->mm_version[i]), "851", 3)) ||
 			(!strncmp((char *)&(info->mm_version[i]), "852", 3))) {
-			double a, b, dh;
+			double dh;
 
-			a = 0;
-			b = 0;
-			for (j = 0; j < info->miner_count[i]; j++) {
-				for (k = 0; k < info->asic_count[i]; k++) {
-					a += info->get_asic[i][j][k][0];
-					b += info->get_asic[i][j][k][1];
-				}
-			}
-			dh = b ? (b / (a + b)) * 100 : 0;
+			dh = cal_dh(info,i);
 			sprintf(buf, " DH[%.3f%%]", dh);
 			strcat(statbuf, buf);
 		}
