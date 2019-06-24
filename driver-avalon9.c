@@ -244,6 +244,19 @@ struct avalon9_dev_description avalon9_dev_table[] = {
 			AVA9_DEFAULT_FREQUENCY_525M,
 			AVA9_DEFAULT_FREQUENCY_575M
 		}
+	},
+	{
+		"910S",
+		910,
+		6,
+		34,
+		26,
+		{
+			AVA9_DEFAULT_FREQUENCY_0M,
+			AVA9_DEFAULT_FREQUENCY_462M,
+			AVA9_DEFAULT_FREQUENCY_512M,
+			AVA9_DEFAULT_FREQUENCY_562M
+		}
 	}
 };
 
@@ -1585,6 +1598,14 @@ static void detect_modules(struct cgpu_info *avalon9)
 				break;
 			}
 		}
+
+		if (!strncmp((char *)&(info->mm_version[i]), "910S", 4)) {
+			dev_index++;
+			info->mod_type[i] = avalon9_dev_table[dev_index].mod_type;
+			info->miner_count[i] = avalon9_dev_table[dev_index].miner_count;
+			info->asic_count[i] = avalon9_dev_table[dev_index].asic_count;
+		}
+
 		if (dev_index == (sizeof(avalon9_dev_table) / sizeof(avalon9_dev_table[0]))) {
 			applog(LOG_NOTICE, "%s-%d: The modular version %s cann't be support",
 				       avalon9->drv->name, avalon9->device_id, info->mm_version[i]);
@@ -2340,6 +2361,14 @@ static int64_t avalon9_scanhash(struct thr_info *thr)
 								info->set_frequency[i][j][k] = opt_avalon9_freq[k];
 						}
 					}
+				} else {
+					/* Avalon910 and avalon910S may modify frequency value*/
+					for (j = 0; j < info->miner_count[i]; j++) {
+						for (k = 0; k < AVA9_DEFAULT_PLL_CNT; k++) {
+							if (opt_avalon9_freq[k] != AVA9_DEFAULT_FREQUENCY)
+								info->set_frequency[i][j][k] = opt_avalon9_freq[k];
+						}
+					}
 				}
 
 				avalon9_init_setting(avalon9, i);
@@ -2930,14 +2959,17 @@ char *set_avalon9_factory_info(struct cgpu_info *avalon9, char *arg)
 {
 	struct avalon9_info *info = avalon9->device_data;
 	char type[AVA9_DEFAULT_FACTORY_INFO_1_CNT];
+	char type_plus[AVA9_DEFAULT_FACTORY_INFO_2_CNT] = {0};
+	char type_all[AVA9_DEFAULT_FACTORY_INFO_1_CNT + AVA9_DEFAULT_FACTORY_INFO_2_CNT + 1] = {0};
 	int val, i;
 
 	if (!(*arg))
 		return NULL;
 
-	memset(type, 0, AVA9_DEFAULT_FACTORY_INFO_1_CNT);
+	sscanf(arg, "%d-%s", &val, type_all);
 
-	sscanf(arg, "%d-%s", &val, type);
+	memcpy(type, &type_all[0], AVA9_DEFAULT_FACTORY_INFO_1_CNT);
+	memcpy(type_plus, &type_all[AVA9_DEFAULT_FACTORY_INFO_1_CNT + 1], AVA9_DEFAULT_FACTORY_INFO_2_CNT);
 
 	if ((val != AVA9_DEFAULT_FACTORY_INFO_0_IGNORE) &&
 				(val < AVA9_DEFAULT_FACTORY_INFO_0_MIN || val > AVA9_DEFAULT_FACTORY_INFO_0_MAX))
@@ -2950,6 +2982,7 @@ char *set_avalon9_factory_info(struct cgpu_info *avalon9, char *arg)
 		info->factory_info[i][0] = val;
 
 		memcpy(&info->factory_info[i][1], type, AVA9_DEFAULT_FACTORY_INFO_1_CNT);
+		memcpy(&info->factory_info[i][4], type_plus, AVA9_DEFAULT_FACTORY_INFO_2_CNT);
 
 		avalon9_set_factory_info(avalon9, i, (uint8_t *)info->factory_info[i]);
 	}
